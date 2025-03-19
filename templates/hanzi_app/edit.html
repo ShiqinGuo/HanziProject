@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>编辑汉字</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .container { max-width: 800px; margin-top: 30px; }
+        .form-group { margin-bottom: 20px; }
+        .form-control:focus { border-color: #2329d7; box-shadow: 0 0 0 0.2rem rgba(35, 41, 215, 0.25); }
+        .btn-custom { color: #fff; background-color: #2329d7; border-color: #2329d7; }
+        .btn-custom:hover { color: #fff;background-color: #15187f; border-color: #15187f; }
+        .btn-custom:focus { box-shadow: 0 0 0 0.2rem rgba(35, 41, 215, 0.25); }
+        .card { border: none; border-radius: 15px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1); }
+        .card-header { background-color: #f8f9fa; border-bottom: 1px solid #e9ecef; }
+        .card-body { padding: 2rem; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="card">
+        <div class="card-header">
+            <h2 class="mb-0">编辑汉字</h2>
+        </div>
+        <div class="card-body">
+            <form method="POST" enctype="multipart/form-data" action="{% url 'hanzi_app:update_hanzi' hanzi.id %}">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="form-label">汉字字符</label>
+                            <input type="text" class="form-control" name="character" id="character_input" value="{{ hanzi.character }}" >
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">结构类型</label>
+                            <select class="form-select" name="structure" id="structure" required onchange="updateHanziId()">
+                                {% for option in structure_options %}
+                                    <option value="{{ option }}" {% if option == hanzi.structure %}selected{% endif %}>{{ option }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">自动生成编号</label>
+                            <input type="text" class="form-control" id="generated_id" name="generated_id" value="{{ hanzi.id }}">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">笔画数</label>
+                            <input type="number" class="form-control" id="stroke_count" name="stroke_count" value="{{ hanzi.stroke_count }}" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">拼音</label>
+                            <input type="text" class="form-control" name="pinyin" value="{{ hanzi.pinyin }}" required>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="form-label">汉字图片</label>
+                            <input type="file" class="form-control" name="new_image_file" accept="image/*">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">标准楷体图片</label>
+                            <input type="file" class="form-control" name="new_standard_file" accept="image/*">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">简繁体</label>
+                            <select class="form-select" name="variant" required>
+                                {% for option in variant_options %}
+                                    <option value="{{ option }}"
+                                            {% if option == hanzi.variant %}selected{% endif %}>
+                                        {{ option }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">等级</label>
+                            <select class="form-select" name="level" id="level">
+                                <option value="A" {% if hanzi.level == 'A' %}selected{% endif %}>A</option>
+                                <option value="B" {% if hanzi.level == 'B' %}selected{% endif %}>B</option>
+                                <option value="C" {% if hanzi.level == 'C' %}selected{% endif %}>C</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">笔顺（逗号分隔）</label>
+                    <input type="text" class="form-control" name="stroke_order" value="{{ hanzi.stroke_order }}" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">评语</label>
+                    <textarea class="form-control" name="comment" rows="3">{{ hanzi.comment }}</textarea>
+                </div>
+                <button type="submit" class="btn btn-custom">保存修改</button>
+                <a href="{% url 'hanzi_app:index' %}{{ request.GET.urlencode }}" class="btn btn-secondary">返回</a>
+            </form>
+        </div>
+    </div>
+</div>
+<script>
+//更新汉字结构id
+function updateHanziId() {
+    const structure = document.getElementById('structure').value;
+    fetch('/generate_id/', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+        body: JSON.stringify({ structure: structure })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if(!data.error) {
+            document.getElementById('generated_id').value = data.id;
+        }
+    });
+}
+//添加笔画数自动获取功能
+document.getElementById('character_input').addEventListener('input', function(e) {
+    const char = e.target.value;
+    if (char.length === 1) {
+        fetch(`/get_stroke_count/${char}/`)
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('stroke_count').value = data.stroke_count;
+            })
+            .catch(error => console.error('获取笔画数失败:', error));
+    }
+});
+//保存返回记录
+window.addEventListener('load', () => {
+    const backButton = document.querySelector('a[href="{% url "hanzi_app:index" %}"]');
+    if (backButton) {
+        const lastParams = JSON.parse(localStorage.getItem('lastIndexParams') || '{}');
+        const searchParams = new URLSearchParams(lastParams);
+        backButton.href = `{% url 'hanzi_app:index' %}?${searchParams.toString()}`;
+        
+        // 添加点击事件来保存返回意图
+        backButton.addEventListener('click', () => {
+            localStorage.setItem('shouldRestoreScroll', 'true');
+        });
+    }
+});
+</script>
+</body>
+</html>

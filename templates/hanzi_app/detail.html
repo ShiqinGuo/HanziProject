@@ -1,0 +1,84 @@
+{% load static %}
+<!DOCTYPE html>
+<html>
+<head>
+    <title>汉字详情 - {{ hanzi.character }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .h5, h5 {
+            margin-top: 10px;
+            display: flex;
+            font-size: 1.25rem;
+            align-content: center;
+            justify-content: space-around;
+        }
+        .container { max-width: 800px; margin-top: 30px; }
+        .card { border: none; border-radius: 15px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1); }
+        .card-header { background-color: #f8f9fa; border-bottom: 1px solid #e9ecef; }
+        .card-body { padding: 1.5rem; }
+        .btn-custom { background-color: #2329d7; border-color: #2329d7; }
+        .btn-custom:hover { background-color: #15187f; border-color: #15187f; }
+        .btn-custom:focus { box-shadow: 0 0 0 0.2rem rgba(35, 41, 215, 0.25); }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="card">
+        <div class="card-header">
+            <h2 class="mb-0">汉字详情 - {{ hanzi.character }}</h2>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="card">
+                        <h5 class="card-title">汉字图片</h5>
+                        <img src="{{ MEDIA_URL }}{{ hanzi.image_path }}" class="card-img-top" alt="用户上传图片">
+                        <div class="card-body">
+                            <h5 class="card-title">标准写法</h5>
+                            <img src="{{ MEDIA_URL }}{{ hanzi.standard_image }}" class="img-fluid" alt="标准楷体图片">
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-8">
+                    <dl class="row">
+                        <dt class="col-sm-3">编号</dt>
+                        <dd class="col-sm-9">{{ hanzi.id }}</dd>
+                        <dt class="col-sm-3">笔画数</dt>
+                        <dd class="col-sm-9">{{ hanzi.stroke_count }}</dd>
+                        <dt class="col-sm-3">结构类型</dt>
+                        <dd class="col-sm-9">{{ hanzi.structure }}</dd>
+                        <dt class="col-sm-3">笔顺</dt>
+                        <dd class="col-sm-9">{{ hanzi.stroke_order }}</dd>
+                        <dt class="col-sm-3">拼音</dt>
+                        <dd class="col-sm-9">{{ hanzi.pinyin }}</dd>
+                        <dt class="col-sm-3">简繁体</dt>
+                        <dd class="col-sm-9">{{ hanzi.variant }}</dd>
+                        <dt class="col-sm-3">等级</dt>
+                        <dd class="col-sm-9">{{ hanzi.level|default:'未设置' }}</dd>
+                        <dt class="col-sm-3">评语</dt>
+                        <dd class="col-sm-9">{{ hanzi.comment|default:'暂无评语' }}</dd>
+                    </dl>
+                </div>
+            </div>
+            <a href="{% url 'hanzi_app:index' %}{{ request.GET.urlencode }}" class="btn btn-secondary mt-3">返回列表</a>
+        </div>
+    </div>
+</div>
+<script>
+window.addEventListener('load', () => {
+    const backButton = document.querySelector('a[href="{% url "hanzi_app:index" %}"]');
+    if (backButton) {
+        const lastParams = JSON.parse(localStorage.getItem('lastIndexParams') || '{}');
+        const searchParams = new URLSearchParams(lastParams);
+        backButton.href = `{% url 'hanzi_app:index' %}?${searchParams.toString()}`;
+        
+        // 添加点击事件来保存返回意图
+        backButton.addEventListener('click', () => {
+            localStorage.setItem('shouldRestoreScroll', 'true');
+        });
+    }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+Django==4.2.11
+mysqlclient==2.2.0
+pypinyin==0.49.0
+Pillow==10.0.0
+gunicorn==21.2.0
+requests==2.31.0
+beautifulsoup4==4.12.2
+python-dotenv==1.0.0
+numpy==1.26.4        # recognition.py 中图像处理需要
+opencv-python-headless==4.9.0.80  # 汉字识别预处理
+whitenoise==6.6.0     # 生产环境静态文件服务
+fonttools==4.51.0     # 字体文件处理
+asgiref==3.8.1        # Django 依赖
+sqlparse==0.5.0       # 数据库查询解析

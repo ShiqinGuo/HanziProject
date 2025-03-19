@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    {% load static %}
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>汉字管理系统</title>
+    <link rel="shortcut icon" type="image/x-icon" href="{% static 'images/favicon.ico' %}">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body { background-color: #f8f9fa; }
+        .form-select {
+            margin-top: 8px;
+            margin-bottom: 8px;
+            --bs-form-select-bg-img: url(data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23343a40' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e);
+            display: block;
+            width: 100%;
+            padding: .375rem 2.25rem .375rem .75rem;
+            font-size: 1rem;
+            font-weight: 400;
+            line-height: 1.5;
+            color: var(--bs-body-color);
+            background-color: var(--bs-body-bg);
+            background-image: var(--bs-form-select-bg-img), var(--bs-form-select-bg-icon, none);
+            background-repeat: no-repeat;
+            background-position: right .75rem center;
+            background-size: 16px 12px;
+            border: var(--bs-border-width) solid var(--bs-border-color);
+            border-radius: var(--bs-border-radius);
+            transition: border-color .15sease-in-out, box-shadow .15sease-in-out;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+        }
+        .card { border: none; border-radius: 15px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); }
+        .card-header {
+            background-color: #ffffff;
+            border-bottom: 1px solid #e9ecef;
+            padding: 1.5rem;
+        }
+        .card-body {
+            padding: 2rem;
+        }
+        .search-box form {
+            gap: 1rem;
+            display: flex;
+            margin-bottom: 2rem;
+            flex-direction: column;
+        }
+        .search-box .input-group {
+            flex: 1;
+            max-width: 500px;
+        }
+        .col-md-6 {
+            width: 30%;
+        }
+        .progress-message {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            min-width: 250px;
+            z-index: 9999;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        .hanzi-table img {
+            max-height: 50px;
+            border-radius: 4px;
+            border: 1px solid #dee2e6;
+        }
+        .pagination {
+            margin-top: 2rem;
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            align-items:baseline;
+        }
+        .btn-custom {
+            background-color: #007bff;
+            border-color: #007bff;
+        }
+        .btn-custom:hover {
+            background-color: #0056b3;
+            border-color: #004085;
+        }
+    </style>
+</head>
+<body>
+<div class="container mt-5">
+    <div class="card">
+        <div class="card-header">
+            <h1 class="mb-0">汉字管理</h1>
+        </div>
+        {% if request.GET.deleted == 'success' %}
+        <div class="alert alert-success alert-dismissible fade show">
+            删除成功！
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        {% endif %}
+        <div class="card-body">
+            <div class="search-box">
+                <form method="GET" class="row g-3">
+                    <div class="col-md-6">
+                        <div class="d-flex align-items-center">
+                            <a href="{% url 'hanzi_app:import_data' %}" class="btn btn-info ms-3">
+                                <i class="fas fa-file-import"></i> 数据导入
+                            </a>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="input-group">
+                            <input type="text" class="form-control" name="search" placeholder="输入汉字" value="{{ search_char }}">
+                            <button class="btn btn-outline-secondary" type="submit"><i class="fas fa-search"></i> 搜索</button>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-inline">
+                            <label for="stroke_count" class="me-2 ms-3">笔画数：</label>
+                            <select class="form-select" name="stroke_count" id="stroke_count">
+                                <option value="所有">所有</option>
+                                {% for i in stroke_count_options %}
+                                    <option value="{{ i }}" 
+                                        {% if stroke_count == i|stringformat:"s" %}selected{% endif %}>
+                                        {{ i }}画
+                                    </option>
+                                {% endfor %}
+                            </select>
+                            <label for="structure" class="me-2 ms-3">结构类型：</label>
+                            <select class="form-select" name="structure" id="structure">
+                                <option value="所有">所有</option>
+                                <option value="未知结构" {% if structure == '未知结构' %}selected{% endif %}>未知结构</option>
+                                <option value="左右结构" {% if structure == '左右结构' %}selected{% endif %}>左右结构</option>
+                                <option value="上下结构" {% if structure == '上下结构' %}selected{% endif %}>上下结构</option>
+                                <option value="包围结构" {% if structure == '包围结构' %}selected{% endif %}>包围结构</option>
+                                <option value="独体结构" {% if structure == '独体结构' %}selected{% endif %}>独体结构</option>
+                                <option value="品字结构" {% if structure == '品字结构' %}selected{% endif %}>品字结构</option>
+                                <option value="穿插结构" {% if structure == '穿插结构' %}selected{% endif %}>穿插结构</option>
+                            </select>
+                            <label for="variant" class="me-2 ms-3">简繁体：</label>
+                            <select class="form-select" name="variant" id="variant">
+                                <option value="所有">所有</option>
+                                <option value="简体" {% if variant == '简体' %}selected{% endif %}>简体</option>
+                                <option value="繁体" {% if variant == '繁体' %}selected{% endif %}>繁体</option>
+                            </select>
+                            <label for="level" class="me-2 ms-3">等级：</label>
+                            <select class="form-select" name="level" id="level">
+                                <option value="所有">所有</option>
+                                <option value="A" {% if level == 'A' %}selected{% endif %}>A</option>
+                                <option value="B" {% if level == 'B' %}selected{% endif %}>B</option>
+                                <option value="C" {% if level == 'C' %}selected{% endif %}>C</option>
+                            </select>
+                            <button class="btn btn-primary ms-3"><i class="fas fa-filter"></i> 筛选</button>
+                            <button class="btn btn-secondary ms-2" type="button" onclick="clearFilters()"><i class="fas fa-sync"></i> 清除筛选</button>
+                            <a href="{% url 'hanzi_app:add' %}" class="btn btn-success ms-auto float-end"><i class="fas fa-plus"></i> 添加新汉字</a>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <table class="hanzi-table table table-bordered table-hover">
+                <thead class="thead-dark">
+                    <tr>
+                        <th><input type="checkbox" id="selectAll" onclick="toggleAll()"></th>
+                        <th>编号</th>
+                        <th>汉字</th>
+                        <th>用户上传图片</th>
+                        <th>标准楷体图片</th>
+                        <th>笔画数</th>
+                        <th>拼音</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in page_obj.object_list %}  {# 修改此处变量名 #}
+                    <tr>
+                        <td><input type="checkbox" class="hanzi-select" value="{{ item.id }}"></td>
+                        <td>{{ item.id }}</td>
+                        <td>{{ item.character }}</td>
+                        <td>
+                            <img src="{{ MEDIA_URL }}{{ item.image_path }}" alt="用户上传图片" class="img-fluid">
+                        </td>
+                        <td>
+                            <img src="{{ MEDIA_URL }}{{ item.standard_image }}" alt="标准楷体图片" class="img-fluid">
+                        </td>
+                        <td>{{ item.stroke_count }}</td>
+                        <td>{{ item.pinyin }}</td>
+                        <td>
+                            <a href="{% url 'hanzi_app:hanzi_detail' item.id %}" class="btn btn-info btn-sm">
+                                <i class="fas fa-eye"></i> 详情
+                            </a>
+                            <a href="{% url 'hanzi_app:edit_hanzi' item.id %}" class="btn btn-warning btn-sm">
+                                <i class="fas fa-edit"></i> 编辑
+                            </a>
+                            <a href="javascript:;" onclick="deleteHanzi('{{ item.id }}')" class="btn btn-danger btn-sm">
+                                <i class="fas fa-trash"></i> 删除
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <div class="mt-3 mb-3">
+                <button class="btn btn-success" onclick="exportSelected()">
+                    <i class="fas fa-file-export"></i> 导出选中数据
+                </button>
+                <button class="btn btn-secondary ms-2" onclick="clearSelected()">
+                    <i class="fas fa-times"></i> 清除选中
+                </button>
+                <span id="selectedCount" class="ms-2">(已选择: 0)</span>
+            </div>
+            {% with current_params=request.GET.urlencode %}
+            <div class="pagination">
+                {% if page_obj.has_previous %}
+                    <a href="?page=1&{{ current_params|cut:'page=' }}" class="btn btn-secondary">  
+                        <i class="fas fa-fast-backward"></i> 首页
+                    </a>
+                    <a href="?page={{ page_obj.previous_page_number }}&{{ current_params|cut:'page=' }}" class="btn btn-secondary">  
+                        <i class="fas fa-step-backward"></i> 上一页
+                    </a>
+                {% endif %}
+            
+                {# 修改页码链接 #}
+                {% for num in page_obj.paginator.page_range %}
+                    {% if num >= page_obj.number|add:-5 and num <= page_obj.number|add:5 %}
+                        {% if num == page_obj.number %}
+                            <span class="btn btn-primary">{{ num }}</span>
+                        {% else %}
+                            <a href="?page={{ num }}&{{ current_params|cut:'page=' }}" class="btn btn-secondary">  
+                                {{ num }}
+                            </a>
+                        {% endif %}
+                    {% endif %}
+                {% endfor %}
+            
+                {% if page_obj.has_next %}
+                    <a href="?page={{ page_obj.next_page_number }}&{{ current_params|cut:'page=' }}" class="btn btn-secondary"> 
+                        下一页 <i class="fas fa-step-forward"></i>
+                    </a>
+                    <a href="?page={{ page_obj.paginator.num_pages }}&{{ current_params|cut:'page=' }}" class="btn btn-secondary">  
+                        末页 <i class="fas fa-fast-forward"></i>
+                    </a>
+                {% endif %}
+            
+                {# 修改下拉菜单 #}
+                <select class="form-select ms-2" style="width: 120px;" 
+                        onchange="window.location.href=updatePageParam(this.value)">  
+                    {% for num in page_obj.paginator.page_range %}
+                        <option value="{{ num }}" {% if num == page_obj.number %}selected{% endif %}>
+                            第 {{ num }} 页
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endwith %}
+        </div>
+    </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// 存储选中的项目
+let selectedItems = new Set(JSON.parse(localStorage.getItem('selectedHanziItems') || '[]'));
+
+// 更新选中计数
+function updateSelectedCount() {
+    document.getElementById('selectedCount').textContent = `(已选择: ${selectedItems.size})`;
+}
+
+// 更新选中项目
+function updateSelectedItems() {
+    const checkboxes = document.getElementsByClassName('hanzi-select');
+    
+    // 只更新当前页面的选择状态
+    for(let checkbox of checkboxes) {
+        if(checkbox.checked) {
+            selectedItems.add(checkbox.value);
+        } else {
+            selectedItems.delete(checkbox.value);
+        }
+    }
+    
+    localStorage.setItem('selectedHanziItems', JSON.stringify(Array.from(selectedItems)));
+    updateSelectedCount();
+}
+
+// 全选/取消全选
+function toggleAll() {
+    const checkboxes = document.getElementsByClassName('hanzi-select');
+    const selectAll = document.getElementById('selectAll');
+    
+    for(let checkbox of checkboxes) {
+        if(selectAll.checked) {
+            selectedItems.add(checkbox.value);
+            checkbox.checked = true;
+        } else {
+            selectedItems.delete(checkbox.value);
+            checkbox.checked = false;
+        }
+    }
+    
+    localStorage.setItem('selectedHanziItems', JSON.stringify(Array.from(selectedItems)));
+    updateSelectedCount();
+}
+
+// 导出选中数据
+function exportSelected() {
+    if(selectedItems.size === 0) {
+        alert('请至少选择一项数据');
+        return;
+    }
+    
+    // 添加导出类型选择
+    if(confirm('是否同时导出图片？')) {
+        window.location.href = `/export?ids=${Array.from(selectedItems).join(',')}&include_images=true`;
+    } else {
+        window.location.href = `/export?ids=${Array.from(selectedItems).join(',')}&include_images=false`;
+    }
+}
+
+// 清除选中
+function clearSelected() {
+    if(selectedItems.size === 0) {
+        alert('没有选中的数据');
+        return;
+    }
+    
+    if(confirm('确定要清除所有选中的数据吗？')) {
+        // 清除所有选中状态
+        selectedItems.clear();
+        localStorage.setItem('selectedHanziItems', '[]');
+        
+        // 取消所有复选框的选中状态
+        const checkboxes = document.getElementsByClassName('hanzi-select');
+        for(let checkbox of checkboxes) {
+            checkbox.checked = false;
+        }
+        
+        // 取消全选框的选中状态
+        document.getElementById('selectAll').checked = false;
+        
+        // 更新计数
+        updateSelectedCount();
+        
+        // 调用后端清除接口
+        fetch('/clear-selected')
+            .then(response => response.json())
+            .then(data => {
+                if(data.success) {
+                    console.log('选中数据已清除');
+                }
+            })
+            .catch(error => console.error('清除失败:', error));
+    }
+}
+
+// 页面加载时恢复选中状态
+window.addEventListener('load', () => {
+    const checkboxes = document.getElementsByClassName('hanzi-select');
+    for(let checkbox of checkboxes) {
+        if(selectedItems.has(checkbox.value)) {
+            checkbox.checked = true;
+        }
+    }
+    updateSelectedCount();
+
+    // 在页面加载时恢复滚动位置
+    if (localStorage.getItem('shouldRestoreScroll') === 'true') {
+        const scrollPosition = localStorage.getItem('lastScrollPosition');
+        if (scrollPosition) {
+            window.scrollTo(0, parseInt(scrollPosition));
+        }
+        localStorage.removeItem('shouldRestoreScroll');
+    }
+    
+    // 保存当前URL参数
+    const currentParams = {};
+    const urlParams = new URLSearchParams(window.location.search);
+    for (const [key, value] of urlParams.entries()) {
+        currentParams[key] = value;
+    }
+    localStorage.setItem('lastIndexParams', JSON.stringify(currentParams));
+});
+
+// 在页面滚动时保存位置
+window.addEventListener('scroll', () => {
+    localStorage.setItem('lastScrollPosition', window.pageYOffset);
+});
+
+//删除汉字
+function deleteHanzi(id) {
+    if (confirm('确定要删除这个汉字吗？')) {
+        // 使用模板字符串动态生成带占位符的URL
+        const url = `{% url 'hanzi_app:delete_hanzi' 'hanz_id' %}`.replace('hanz_id', id);
+        window.location.href = url;
+    }
+}
+//页面参数更新函数
+function updatePageParam(newPage) {
+    const params = new URLSearchParams(window.location.search);
+    params.delete('page');  // 移除旧页码
+    params.set('page', newPage);
+    return `${location.pathname}?${params.toString()}`;
+}
+// 跳转到指定页面
+function jumpToPage(page) {
+    const params = new URLSearchParams(window.location.search);  // 使用当前URL参数
+    params.set('page', page);
+    params.delete('search');  // 移除重复参数
+    window.location.href = `${location.pathname}?${params.toString()}`;
+}
+
+// 修改清除筛选函数
+function clearFilters() {
+    // 重置所有参数并刷新页面
+    document.getElementById('stroke_count').value = '所有';
+    document.getElementById('structure').value = '所有';
+    document.getElementById('variant').value = '所有';
+    document.getElementById('level').value = '所有';
+    window.location.href = "?search=&stroke_count=所有&structure=所有&variant=所有&level=所有";
+}
+</script>
+</body>
+</html>
