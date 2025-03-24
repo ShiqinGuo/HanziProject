@@ -1,126 +1,409 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-CN">
 <head>
-    <title>数据导入</title>
+    {% load static %}
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数据导入 - 汉字管理系统</title>
+    <link rel="shortcut icon" type="image/x-icon" href="{% static 'images/favicon.ico' %}">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        .container { max-width: 800px; margin-top: 30px; }
-        .card { border: none; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); }
-        .progress { height: 25px; margin: 20px 0; }
-        .alert { margin-top: 20px; }
+        :root {
+            --primary-color: #3f51b5;
+            --secondary-color: #ff4081;
+            --light-bg: #f5f7fa;
+            --dark-text: #333;
+            --card-shadow: 0 8px 16px rgba(0,0,0,0.1);
+        }
+        
+        body { 
+            background-color: var(--light-bg);
+            font-family: 'Noto Sans SC', sans-serif;
+        }
+        
+        .navbar {
+            background-color: var(--primary-color);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .navbar-brand {
+            font-weight: 700;
+            color: white !important;
+        }
+        .bg-primary {
+            --bs-bg-opacity: 1;
+            background-color: rgb(63 81 181) !important;
+        }
+        
+        .card {
+            border: none;
+            border-radius: 12px;
+            box-shadow: var(--card-shadow);
+            transition: transform 0.3s ease;
+        }
+        
+        .card-header {
+            background-color: white;
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+            padding: 1.5rem;
+            border-radius: 12px 12px 0 0 !important;
+        }
+        
+        .btn-primary {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+        
+        .btn-primary:hover {
+            background-color: #303f9f;
+            border-color: #303f9f;
+        }
+        
+        .progress {
+            height: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        
+        .progress-bar {
+            background-color: var(--primary-color);
+        }
+        
+        .upload-section {
+            background-color: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .file-input-label {
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        
+        .result-area {
+            margin-top: 30px;
+        }
+        
+        .guide-section {
+            background-color: #e8f4ff;
+            border-left: 4px solid var(--primary-color);
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 0 8px 8px 0;
+        }
+        
+        .guide-title {
+            font-weight: 600;
+            color: var(--primary-color);
+            margin-bottom: 10px;
+        }
+        
+        .guide-list {
+            padding-left: 20px;
+            margin-bottom: 0;
+        }
+        
+        .guide-list li {
+            margin-bottom: 8px;
+        }
+        
+        .file-format-info {
+            font-size: 0.9rem;
+            color: #666;
+            margin-top: 5px;
+        }
+        
+        .alert-info {
+            background-color: #e1f5fe;
+            border-color: #b3e5fc;
+            color: #0277bd;
+        }
     </style>
 </head>
 <body>
-<div class="container">
-    <div class="card">
-        <div class="card-header bg-primary text-white">
-            <h4 class="mb-0">数据导入</h4>
-        </div>
-        <div class="card-body">
-            <form id="importForm" method="POST" enctype="multipart/form-data">
-                <div class="mb-3">
-                    <label class="form-label">选择Excel文件</label>
-                    <input type="file" class="form-control" name="excel_file" accept=".xlsx" required>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">图片上传(ZIP压缩包)</label>
-                    <input type="file" class="form-control" name="image_zip" accept=".zip" required>
-                    <small class="form-text text-muted">请将所有图片打包成ZIP文件上传</small>
-                </div>
-                </div>
-                <button type="submit" class="btn btn-primary">
-                    <i class="fas fa-upload"></i> 开始导入
-                </button>
-                <a href="{% url 'hanzi_app:index' %}" class="btn btn-secondary">返回</a>
-            </form>
-
-            <div id="progressSection" style="display: none;">
-                <div class="progress">
-                    <div id="progressBar" class="progress-bar progress-bar-striped" 
-                         role="progressbar" style="width: 0%">0%</div>
-                </div>
-                <div id="statusText" class="text-center"></div>
+    <!-- 导航栏 -->
+    <nav class="navbar navbar-expand-lg navbar-dark mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="{% url 'hanzi_app:index' %}">
+                <i class="fas fa-book-open me-2"></i>汉字管理系统
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{% url 'hanzi_app:index' %}">
+                            <i class="fas fa-home me-1"></i>首页
+                        </a>
+                    </li>
+                </ul>
             </div>
+        </div>
+    </nav>
 
-            <div id="resultAlert" class="alert" style="display: none;"></div>
+    <div class="container mt-4">
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-file-import me-2"></i>数据导入</h5>
+                <a href="{% url 'hanzi_app:index' %}" class="btn btn-outline-primary"><i class="fas fa-arrow-left me-1"></i>返回列表</a>
+            </div>
+            <div class="card-body">
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <div class="card border-left-primary shadow">
+                            <div class="card-header bg-primary text-white">
+                                <h5 class="m-0"><i class="fas fa-info-circle me-2"></i>导入指南</h5>
+                            </div>
+                            <div class="card-body">
+                                <p><i class="fas fa-check-circle text-success me-2"></i>支持JSON或Excel格式的汉字数据导入</p>
+                                <p><i class="fas fa-check-circle text-success me-2"></i>系统会自动生成缺少的标准图片</p>
+                                <p><i class="fas fa-exclamation-circle text-warning me-2"></i>图片文件需打包为ZIP格式，文件名应与数据中的image_path字段对应</p>
+                                <p><i class="fas fa-exclamation-circle text-warning me-2"></i>例如：如果数据中image_path为"A001"，则ZIP中应包含"A001.jpg"</p>
+                                <p><i class="fas fa-file-alt text-info me-2"></i>Excel格式要求:</p>
+                                <ul>
+                                    <li>第一行为字段说明行</li>
+                                    <li>第二行为字段名行</li>
+                                    <li>第三行开始为数据行</li>
+                                </ul>
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-bordered">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>汉字(character)</th>
+                                                <th>结构(左右结构、上下结构、包围结构、独体结构、品字结构、穿插结构)(structure)</th>
+                                                <th>简繁体(简体、繁体)(variant)</th>
+                                                <th>等级(A、B、C)(level)</th>
+                                                <th>评语(comment)</th>
+                                                <th>文件名不包括后缀(image_path)</th>
+                                            </tr>
+                                            <tr>
+                                                <th>character</th>
+                                                <th>structure</th>
+                                                <th>variant</th>
+                                                <th>level</th>
+                                                <th>comment</th>
+                                                <th>image_path</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td>耽</td>
+                                                <td>上下结构</td>
+                                                <td>简体</td>
+                                                <td>A</td>
+                                                <td>结构匀称美观，左右平衡</td>
+                                                <td>A001</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="alert alert-info">
+                    <i class="fas fa-lightbulb me-2"></i>提示：导入前请确保数据格式正确，系统将自动处理汉字的ID、笔画数和拼音信息。
+                </div>
+                
+                <form id="importForm" method="POST" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="file" class="form-label">JSON数据文件</label>
+                        <input type="file" class="form-control" id="file" name="file" accept=".json">
+                        <div class="form-text">选择包含汉字数据的JSON文件</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="excel_file" class="form-label">Excel数据文件</label>
+                        <input type="file" class="form-control" id="excel_file" name="excel_file" accept=".xlsx,.xls">
+                        <div class="form-text">或选择包含汉字数据的Excel文件</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="image_zip" class="form-label">图片ZIP压缩包</label>
+                        <input type="file" class="form-control" id="image_zip" name="image_zip" accept=".zip">
+                        <div class="form-text">选择包含汉字图片的ZIP文件</div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-upload me-1"></i>开始导入
+                    </button>
+                </form>
+                
+                <div id="progressSection" class="mt-4" style="display: none;">
+                    <h6 class="mb-2">导入进度</h6>
+                    <div class="progress">
+                        <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated" 
+                             role="progressbar" style="width: 0%">0%</div>
+                    </div>
+                    <div id="statusText" class="text-center mt-2"></div>
+                </div>
+
+                <div id="resultAlert" class="alert mt-4" style="display: none;"></div>
+            </div>
+        </div>
+        
+        <!-- 导入说明卡片 -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-question-circle me-2"></i>导入流程说明</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <div class="text-center mb-2">
+                            <i class="fas fa-file-excel fa-3x text-success"></i>
+                        </div>
+                        <h6 class="text-center">1. 准备Excel文件</h6>
+                        <p class="small text-center">准备包含汉字信息的Excel文件，确保包含必要字段</p>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="text-center mb-2">
+                            <i class="fas fa-file-archive fa-3x text-primary"></i>
+                        </div>
+                        <h6 class="text-center">2. 准备图片压缩包</h6>
+                        <p class="small text-center">将汉字图片打包成ZIP文件，确保文件名与Excel中的image_path对应</p>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="text-center mb-2">
+                            <i class="fas fa-upload fa-3x text-danger"></i>
+                        </div>
+                        <h6 class="text-center">3. 上传并导入</h6>
+                        <p class="small text-center">上传文件并点击"开始导入"，系统将自动处理数据</p>
+                    </div>
+                </div>
+                <div class="alert alert-warning mt-3">
+                    <i class="fas fa-exclamation-triangle me-2"></i>注意：导入过程中请勿关闭页面，导入完成后会显示成功和失败的记录数量。
+                </div>
+            </div>
         </div>
     </div>
-</div>
 
-<script src="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.0.0/js/all.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-<script>
-document.getElementById('importForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    
-    const formData = new FormData(e.target);
-    const progressSection = document.getElementById('progressSection');
-    const progressBar = document.getElementById('progressBar');
-    const statusText = document.getElementById('statusText');
-    const resultAlert = document.getElementById('resultAlert');
-    
-    progressSection.style.display = 'block';
-    resultAlert.style.display = 'none';
+    <footer class="bg-dark text-white mt-5 py-4">
+        <div class="container text-center">
+            <p class="mb-0">© 汉字管理平台 | 作者:ShiqinGuo</p>
+        </div>
+    </footer>
 
-    try {
-        const response = await fetch("{% url 'hanzi_app:import_data' %}", {
-            method: 'POST',
-            body: formData
-        });
-        
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        const processedLines = [];
-        
-        while(true) {
-            const {done, value} = await reader.read();
-            if (done) break;
-
-            const chunk = decoder.decode(value);
-            const lines = chunk.split('\n');
-
-            lines.forEach(line => {
-                if (line.startsWith('data:')) {
-                    const eventData = JSON.parse(line.slice(5).trim());
-                    processedLines.push(eventData);
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.getElementById('importForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const progressSection = document.getElementById('progressSection');
+            const progressBar = document.getElementById('progressBar');
+            const statusText = document.getElementById('statusText');
+            const resultAlert = document.getElementById('resultAlert');
+            
+            progressSection.style.display = 'block';
+            resultAlert.style.display = 'none';
+            progressBar.style.width = '10%';
+            progressBar.className = 'progress-bar';
+            progressBar.textContent = '准备导入...';
+            statusText.textContent = '开始处理数据，请稍候...';
+            
+            try {
+                const response = await fetch("{% url 'hanzi_app:import_data' %}", {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (response.status === 200) {
+                    // 处理事件流
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder();
                     
-                    const {progress, processed} = eventData;
-                    progressBar.style.width = `${progress}%`;
-                    progressBar.textContent = `${Math.round(progress)}%`;
-                    statusText.textContent = `正在导入... 已完成 ${progress}%`;
+                    while (true) {
+                        const {done, value} = await reader.read();
+                        if (done) break;
+                        
+                        const chunk = decoder.decode(value);
+                        const lines = chunk.split('\n\n');
+                        
+                        for (const line of lines) {
+                            if (line.startsWith('data:')) {
+                                try {
+                                    const eventData = JSON.parse(line.slice(5).trim());
+                                    
+                                    if ('progress' in eventData) {
+                                        // 处理进度更新
+                                        const {progress, processed, success} = eventData;
+                                        progressBar.style.width = `${progress}%`;
+                                        progressBar.textContent = `${Math.round(progress)}%`;
+                                        statusText.textContent = `正在导入... 已处理 ${processed} 条，成功 ${success} 条`;
+                                    } else if ('success' in eventData) {
+                                        // 处理最终结果
+                                        progressBar.style.width = '100%';
+                                        
+                                        if (eventData.success) {
+                                            progressBar.textContent = '完成';
+                                            resultAlert.className = 'alert alert-success mt-4';
+                                            resultAlert.innerHTML = `<i class="fas fa-check-circle me-2"></i>${eventData.message}`;
+                                        } else {
+                                            progressBar.className = 'progress-bar bg-danger';
+                                            progressBar.textContent = '失败';
+                                            resultAlert.className = 'alert alert-danger mt-4';
+                                            resultAlert.innerHTML = `<i class="fas fa-exclamation-circle me-2"></i>${eventData.message}`;
+                                        }
+                                        
+                                        // 显示任何错误
+                                        if (eventData.errors && eventData.errors.length > 0) {
+                                            const errorList = document.createElement('ul');
+                                            errorList.className = 'mt-2';
+                                            for (const error of eventData.errors) {
+                                                const li = document.createElement('li');
+                                                li.textContent = error;
+                                                errorList.appendChild(li);
+                                            }
+                                            resultAlert.appendChild(errorList);
+                                        }
+                                        
+                                        resultAlert.style.display = 'block';
+                                    }
+                                } catch (parseError) {
+                                    console.error('解析事件数据失败:', parseError);
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    throw new Error('导入请求失败');
                 }
-            });
-        }
-
-        // 获取最终结果
-        const finalResult = processedLines[processedLines.length - 1];
-        resultAlert.className = `alert alert-${finalResult.success ? 'success' : 'danger'}`;
-        resultAlert.innerHTML = finalResult.message;
-        resultAlert.style.display = 'block';
-        
-    } catch (error) {
-        resultAlert.className = 'alert alert-danger';
-        resultAlert.innerHTML = `导入失败: ${error.message}`;
-        resultAlert.style.display = 'block';
-    } finally {
-        progressSection.style.display = 'none';
-    }
-});
-
-window.addEventListener('load', () => {
-    const backButton = document.querySelector('a[href="{% url "hanzi_app:index" %}"]');
-    if (backButton) {
-        const lastParams = JSON.parse(localStorage.getItem('lastIndexParams') || '{}');
-        const searchParams = new URLSearchParams(lastParams);
-        backButton.href = `{% url 'hanzi_app:index' %}?${searchParams.toString()}`;
-        
-        // 添加点击事件来保存返回意图
-        backButton.addEventListener('click', () => {
-            localStorage.setItem('shouldRestoreScroll', 'true');
+            } catch (error) {
+                progressBar.style.width = '100%';
+                progressBar.className = 'progress-bar bg-danger';
+                progressBar.textContent = '错误';
+                statusText.textContent = error.message;
+                resultAlert.className = 'alert alert-danger mt-4';
+                resultAlert.innerHTML = `<i class="fas fa-exclamation-circle me-2"></i>导入失败: ${error.message}`;
+                resultAlert.style.display = 'block';
+            }
         });
-    }
-});
-</script>
+
+        window.addEventListener('load', () => {
+            const backButtons = document.querySelectorAll('a[href="{% url "hanzi_app:index" %}"]');
+            if (backButtons.length > 0) {
+                const params = JSON.parse(localStorage.getItem('lastIndexParams') || '{}');
+                const searchParams = new URLSearchParams(params);
+                
+                backButtons.forEach(button => {
+                    button.addEventListener('click', function() {
+                        // 保存当前滚动位置
+                        localStorage.setItem('lastScrollPosition', window.scrollY);
+                        console.log('保存滚动位置:', window.scrollY);
+                        
+                        // 设置返回标志
+                        sessionStorage.setItem('shouldRestoreScroll', 'true');
+                        console.log('已设置返回标志，将恢复滚动位置');
+                    });
+                });
+            }
+        });
+    </script>
 </body>
 </html>

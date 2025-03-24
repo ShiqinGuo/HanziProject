@@ -1,7 +1,7 @@
 from django.db import models
 
 class Category(models.Model):
-    name = models.CharField('类别名称', max_length=50)
+    name = models.CharField(max_length=100)
     description = models.TextField('描述', blank=True)
     
     class Meta:
@@ -54,3 +54,27 @@ class Hanzi(models.Model):
         
     def __str__(self):
         return f'{self.character}({self.id})'
+
+    @classmethod
+    def search_by_stroke_order(cls, stroke_pattern):
+        """
+        根据笔顺模式搜索汉字
+        :param stroke_pattern: 笔顺模式，如"横,竖"
+        :return: 匹配的汉字QuerySet
+        """
+        if not stroke_pattern:
+            return cls.objects.none()
+            
+        # 将搜索模式转换为列表
+        pattern_list = [p.strip() for p in stroke_pattern.split(',')]
+        
+        # 构建查询
+        query = cls.objects.all()
+        
+        # 对每个笔画进行过滤
+        for stroke in pattern_list:
+            if stroke:
+                # 使用包含查询，考虑到数据格式包含中括号和引号
+                query = query.filter(stroke_order__contains=stroke)
+                
+        return query

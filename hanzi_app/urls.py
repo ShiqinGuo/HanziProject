@@ -13,7 +13,10 @@ urlpatterns = [
     path('edit/<str:hanzi_id>/', views.edit_hanzi, name='edit_hanzi'),
     path('update/<str:hanzi_id>/', views.update_hanzi, name='update_hanzi'),
     path('import/', views.import_data, name='import_data'),
-    path('export/', views.export_data, name='export_data'),
+    path('export/', views.export_hanzi, name='export_hanzi'),
     path('download/<str:filename>/', views.download_file, name='download_file'),
     path('clear-selected/', views.clear_selected, name='clear_selected'),
+    path('get_stroke_order/<str:char>/', views.get_stroke_order_api, name='get_stroke_order_api'),
+    path('stroke-search/', views.stroke_search, name='stroke_search'),
+    path('cleanup_exports/', views.cleanup_exports, name='cleanup_exports'),
 ]

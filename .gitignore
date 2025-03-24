@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*.sqlite3
+.env
+venv/
+
+# Django
+/media/
+/staticfiles/
+
+# IDE
+.idea/
+.vscode/
+
+# Docker
+docker-compose*.yml
+*.db
+*.log
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 新增数据库迁移文件忽略
+/migrations/
+
+# 补充开发环境文件
+*.env.local
+*.secret
+
+# 补充操作系统文件
+ehthumbs.db
+[Tt]humbs.db
+
+# 其他开发工具
+# 新增Jupyter notebook相关忽略
+.ipynb_checkpoints/
+*.ipynb
+
+# 忽略Vagrant环境
+.vagrant/

@@ -1,149 +1,323 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-CN">
 <head>
-    <title>添加汉字</title>
+    {% load static %}
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>添加汉字 - 汉字管理系统</title>
+    <link rel="shortcut icon" type="image/x-icon" href="{% static 'images/favicon.ico' %}">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        .container { max-width: 800px; margin-top: 30px; }
-        .form-group { margin-bottom: 20px; }
-        .form-control:focus { border-color: #2329d7; box-shadow: 0 0 0 0.2rem rgba(35, 41, 215, 0.25); }
-        .btn-custom { color: #fff;background-color: #2329d7; border-color: #2329d7; }
-        .btn-custom:hover { color: #fff;background-color: #15187f; border-color: #15187f; }
-        .btn-custom:focus { box-shadow: 0 0 0 0.2rem rgba(35, 41, 215, 0.25); }
-        .card { border: none; border-radius: 15px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1); }
-        .card-header { background-color: #f8f9fa; border-bottom: 1px solid #e9ecef; }
-        .card-body { padding: 2rem; }
+        :root {
+            --primary-color: #3f51b5;
+            --secondary-color: #ff4081;
+            --light-bg: #f5f7fa;
+            --dark-text: #333;
+            --card-shadow: 0 8px 16px rgba(0,0,0,0.1);
+        }
+        
+        body { 
+            background-color: var(--light-bg);
+            font-family: 'Noto Sans SC', sans-serif;
+        }
+        
+        .navbar {
+            background-color: var(--primary-color);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .navbar-brand {
+            font-weight: 700;
+            color: white !important;
+        }
+        
+        .card {
+            border: none;
+            border-radius: 12px;
+            box-shadow: var(--card-shadow);
+            transition: transform 0.3s ease;
+        }
+        
+        .card-header {
+            background-color: white;
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+            padding: 1.5rem;
+            border-radius: 12px 12px 0 0 !important;
+        }
+        
+        .btn-primary {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+        .bg-primary {
+            --bs-bg-opacity: 1;
+            background-color: rgb(63 81 181) !important;
+        }
+        .btn-primary:hover {
+            background-color: #303f9f;
+            border-color: #303f9f;
+        }
+        
+        .form-label {
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+        }
+        
+        .form-control:focus, .form-select:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 0.25rem rgba(63, 81, 181, 0.25);
+        }
+        
+        .preview-section {
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .preview-character {
+            font-size: 4rem;
+            text-align: center;
+            margin: 1rem 0;
+        }
     </style>
 </head>
 <body>
-<div class="container">
-    <div class="card">
-        <div class="card-header">
-            <h2 class="mb-0">添加新汉字</h2>
+    <!-- 导航栏 -->
+    <nav class="navbar navbar-expand-lg navbar-dark mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="{% url 'hanzi_app:index' %}">
+                <i class="fas fa-book-open me-2"></i>汉字管理系统
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{% url 'hanzi_app:index' %}">
+                            <i class="fas fa-home me-1"></i>首页
+                        </a>
+                    </li>
+                </ul>
+            </div>
         </div>
-        <div class="card-body">
-            <form method="POST" enctype="multipart/form-data">
-                <div class="row g-3">
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label class="form-label">汉字字符</label>
-                            <input type="text" class="form-control" name="character" id="character" maxlength="1" required oninput="getStrokeCount()">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">结构类型</label>
-                            <select class="form-select" name="structure" id="structure" required onchange="generateID()">
-                                <option value="">请选择结构</option>
-                                {% for option in structure_options %}
-                                <option value="{{ option }}">{{ option }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">自动生成编号</label>
-                            <input type="text" class="form-control" id="generated_id" name="generated_id" readonly>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">笔画数</label>
-                            <input type="number" class="form-control" id="stroke_count" name="stroke_count" required>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">拼音</label>
-                            <input type="text" class="form-control" name="pinyin" required>
-                        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card border-left-primary shadow">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="m-0"><i class="fas fa-info-circle me-2"></i>添加指南</h5>
                     </div>
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label class="form-label">汉字图片</label>
-                            <input type="file" class="form-control" name="image_file" accept="image/*" required>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">标准楷体图片</label>
-                            <input type="file" class="form-control" name="standard_file" accept="image/*" required>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">简繁体</label>
-                            <select class="form-select" name="variant" required>
-                                {% for option in variant_options %}
-                                    <option value="{{ option }}"
-                                            {% if option == hanzi.variant %}selected{% endif %}>
-                                        {{ option }}
-                                    </option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">等级</label>
-                            <select class="form-select" name="level" id="level">
-                                <option value="A" {% if hanzi.level == 'A' %}selected{% endif %}>A</option>
-                                <option value="B" {% if hanzi.level == 'B' %}selected{% endif %}>B</option>
-                                <option value="C" {% if hanzi.level == 'C' %}selected{% endif %}>C</option>
-                            </select>
-                        </div>
+                    <div class="card-body">
+                        <p><i class="fas fa-check-circle text-success me-2"></i>输入汉字后会自动获取笔画数</p>
+                        <p><i class="fas fa-check-circle text-success me-2"></i>系统会根据结构自动生成ID</p>
+                        <p><i class="fas fa-check-circle text-success me-2"></i>标准图片会自动生成，无需手动上传</p>
+                        <p><i class="fas fa-exclamation-circle text-warning me-2"></i>必须上传用户书写的汉字图片</p>
                     </div>
                 </div>
-                <div class="form-group">
-                    <label class="form-label">笔顺（逗号分隔）</label>
-                    <input type="text" class="form-control" name="stroke_order" required>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">评语</label>
-                    <textarea class="form-control" name="comment" rows="3"></textarea>
-                </div>
-                <button type="submit" class="btn btn-custom">提交</button>
-                <a href="{% url 'hanzi_app:index' %}" class="btn btn-secondary">返回</a>
-            </form>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-plus-circle me-2"></i>添加新汉字</h5>
+                <a href="{% url 'hanzi_app:index' %}" class="btn btn-outline-primary"><i class="fas fa-arrow-left me-1"></i>返回列表</a>
+            </div>
+            <div class="card-body">
+                <!-- 保留原有的表单功能，仅调整样式 -->
+                <form method="POST" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="character" class="form-label">汉字字符</label>
+                                <input type="text" class="form-control" id="character" name="character" maxlength="1" required>
+                                <div class="form-text">请输入单个汉字</div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="structure" class="form-label">结构类型</label>
+                                <select class="form-select" id="structure" name="structure" required onchange="updateHanziId()">
+                                    <option value="">请选择结构</option>
+                                    <option value="左右结构">左右结构</option>
+                                    <option value="上下结构">上下结构</option>
+                                    <option value="包围结构">包围结构</option>
+                                    <option value="独体结构">独体结构</option>
+                                    <option value="品字结构">品字结构</option>
+                                    <option value="穿插结构">穿插结构</option>
+                                    <option value="未知结构">未知结构</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label for="id" class="form-label">编号</label>
+                                <input type="text" class="form-control" id="id" name="id" readonly>
+                                <div class="form-text text-muted">编号将根据结构类型自动生成</div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="stroke_count" class="form-label">笔画数</label>
+                                <input type="number" class="form-control" id="stroke_count" name="stroke_count" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="pinyin" class="form-label">拼音</label>
+                                <input type="text" class="form-control" id="pinyin" name="pinyin">
+                            </div>
+                            <div class="mb-3">
+                                <label for="level" class="form-label">等级</label>
+                                <select class="form-select" id="level" name="level" required>
+                                    <option value="A">A</option>
+                                    <option value="B">B</option>
+                                    <option value="C">C</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label for="variant" class="form-label">简繁体</label>
+                                <select class="form-select" id="variant" name="variant" required>
+                                    <option value="简体">简体</option>
+                                    <option value="繁体">繁体</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label for="image_file" class="form-label">汉字图片</label>
+                                <input type="file" class="form-control" id="image_file" name="image_file" accept="image/*" required>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="stroke_order" class="form-label">笔顺</label>
+                        <input type="text" class="form-control" id="stroke_order" name="stroke_order" placeholder="例如: 横,竖,撇,捺">
+                        <div class="form-text">请用逗号分隔笔画</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="comment" class="form-label">评语</label>
+                        <textarea class="form-control" id="comment" name="comment" rows="3"></textarea>
+                    </div>
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <button type="submit" class="btn btn-primary px-4"><i class="fas fa-save me-1"></i>保存</button>
+                    </div>
+                </form>
+            </div>
         </div>
     </div>
-</div>
-<script>
-// 获取笔画数
-function getStrokeCount() {
-    const char = document.getElementById('character').value;
-    if (char) {
-        fetch('/get_stroke_count/' + char)
-            .then(response => response.json())  // 确保使用json()解析
+
+    <footer class="bg-dark text-white mt-5 py-4">
+        <div class="container text-center">
+            <p class="mb-0">© 汉字管理平台 | 作者:ShiqinGuo</p>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // 保留原有的JavaScript函数
+        function updateHanziId() {
+            const structure = document.getElementById('structure').value;
+            if (!structure) return;
+            
+            fetch('/generate_id/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({ structure: structure })
+            })
+            .then(response => response.json())
             .then(data => {
-                console.log('服务器返回数据:', data);
-                document.getElementById('stroke_count').value = data.stroke_count;
-                generateID();
-            });
-    }
-}
-// 生成结构ID
-function generateID() {
-    const structure = document.getElementById('structure').value;
-    fetch('/generate_id/', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({structure: structure})
-    })
-    .then(response => {
-        console.log('响应状态:', response.status);
-        if (!response.ok) {
-            return response.text().then(text => { throw new Error(text) })
+                if (!data.error) {
+                    document.getElementById('id').value = data.id;
+                } else {
+                    console.error('生成ID失败:', data.error);
+                }
+            })
+            .catch(error => console.error('请求失败:', error));
         }
-        return response.json()
-    })
-    .then(data => {
-        console.log('生成的ID:', data.id);
-        document.getElementById('generated_id').value = data.id;
-    })
-    .catch(error => console.error('生成ID失败:', error));
-}
-// 保存返回记录
-window.addEventListener('load', () => {
-    const backButton = document.querySelector('a[href="{% url "hanzi_app:index" %}"]');
-    if (backButton) {
-        const lastParams = JSON.parse(localStorage.getItem('lastIndexParams') || '{}');
-        const searchParams = new URLSearchParams(lastParams);
-        backButton.href = `{% url 'hanzi_app:index' %}?${searchParams.toString()}`;
         
-        backButton.addEventListener('click', () => {
-            localStorage.setItem('shouldRestoreScroll', 'true');
+        // 自动获取笔画数和笔顺
+        document.getElementById('character').addEventListener('input', function(e) {
+            const char = e.target.value;
+            if (char.length === 1) {
+                // 获取笔画数
+                fetch(`/get_stroke_count/${char}/`)
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('stroke_count').value = data.stroke_count;
+                })
+                .catch(error => console.error('获取笔画数失败:', error));
+                
+                // 获取笔顺 - 这里需要添加一个新的API端点
+                fetch(`/get_stroke_order/${char}/`)
+                .then(response => response.json())
+                .then(data => {
+                    if(data.stroke_order) {
+                        document.getElementById('stroke_order').value = data.stroke_order;
+                    }
+                })
+                .catch(error => console.error('获取笔顺失败:', error));
+            }
         });
-    }
-});
-</script>
+        
+        // 为返回列表按钮添加事件处理
+        document.addEventListener('DOMContentLoaded', function() {
+            const backToListBtn = document.querySelector('a[href="{% url "hanzi_app:index" %}"]');
+            if (backToListBtn) {
+                // 使用保存的参数重建URL
+                const params = JSON.parse(localStorage.getItem('lastIndexParams') || '{}');
+                const searchParams = new URLSearchParams(params);
+                const baseUrl = backToListBtn.getAttribute('href').split('?')[0];
+                backToListBtn.href = `${baseUrl}?${searchParams.toString()}`;
+                
+                // 点击时设置恢复标志
+                backToListBtn.addEventListener('click', function() {
+                    sessionStorage.setItem('shouldRestoreScroll', 'true');
+                    console.log('已设置返回标志，将恢复滚动位置');
+                });
+            }
+        });
+
+        // 添加表单提交事件
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.querySelector('form');
+            if (form) {
+                // 确保只有用户图片是必填的
+                const imageFileInput = document.getElementById('image_file');
+                if (imageFileInput) {
+                    imageFileInput.setAttribute('required', 'required');
+                }
+                
+                // 表单提交前验证
+                form.addEventListener('submit', function(event) {
+                    const character = document.getElementById('character').value;
+                    const generatedId = document.getElementById('generated_id').value;
+                    
+                    if (!character || character.length !== 1) {
+                        event.preventDefault();
+                        alert('请输入单个汉字字符');
+                        return false;
+                    }
+                    
+                    if (!generatedId) {
+                        event.preventDefault();
+                        alert('请生成有效的ID');
+                        return false;
+                    }
+                    
+                    if (!imageFileInput.files || imageFileInput.files.length === 0) {
+                        event.preventDefault();
+                        alert('请上传用户书写的汉字图片');
+                        return false;
+                    }
+                    
+                    // 保存操作状态和当前索引页参数
+                    sessionStorage.setItem('operationCompleted', 'true');
+                    const params = JSON.parse(localStorage.getItem('lastIndexParams') || '{}');
+                    sessionStorage.setItem('returnToParams', JSON.stringify(params));
+                    sessionStorage.setItem('shouldRestoreScroll', 'true');
+                });
+            }
+        });
+    </script>
 </body>
 </html>

@@ -55,15 +55,21 @@ def get_stroke_order(hanzi):
     :return: 各字符对应的笔顺列表
     """
     stroke_data = {}
-    # 读取笔顺文件
-    with open("Strokes.txt", "r", encoding="utf-8") as f:
-        for line in f:
-            parts = line.strip().split('\t')
-            if len(parts) >= 5:
-                character = parts[1]
-                strokes = parts[4]
-                stroke_data[character] = strokes
-    return [stroke_data.get(char, None) for char in hanzi]
+    try:
+        stroke_file_path = "Strokes.txt"  # 相对路径
+            
+        with open(stroke_file_path, "r", encoding="utf-8") as f:
+            for line in f:
+                parts = line.strip().split('\t')
+                if len(parts) >= 5:
+                    character = parts[1]
+                    strokes = parts[4]  
+                    stroke_data[character] = strokes
+    except Exception as e:
+        print(f"读取笔顺文件出错: {str(e)}")
+    
+    # 直接返回笔顺数据，无需转换
+    return [stroke_data.get(char, '') for char in hanzi]
 
 
 def get_pinyin_and_stroke(hanzi):
@@ -104,4 +110,5 @@ def generate_all_standard_images():
 
 # 测试代码
 if __name__ == "__main__":
-    generate_all_standard_images()
+    print(get_pinyin('郭'))
+    print(get_stroke_order('郭'))

@@ -14,3 +14,20 @@ DATABASES = {
         }
     }
 } 
+CACHES = {
+    'default': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': 'redis://127.0.0.1:6379/1',
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+            'CONNECTION_POOL_KWARGS': {'max_connections': 100},
+            'PARSER_CLASS': 'redis.connection.HiredisParser',
+        },
+        'KEY_PREFIX': 'hanzi_'
+    }
+}
+
+# 会话存储使用 Redis
+SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
+SESSION_CACHE_ALIAS = 'default'
+SESSION_COOKIE_AGE = 86400  # 24小时
