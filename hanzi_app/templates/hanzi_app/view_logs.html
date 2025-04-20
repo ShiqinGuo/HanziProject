@@ -1,0 +1,403 @@
+{% extends "hanzi_app/base.html" %}
+
+{% block title %}查看前端日志 - 汉字管理系统{% endblock %}
+
+{% block additional_style %}
+<style>
+    .log-entry {
+        margin-bottom: 15px;
+        padding: 10px;
+        border-radius: 5px;
+    }
+    
+    .log-entry.info {
+        background-color: rgba(23, 162, 184, 0.1);
+        border-left: 4px solid #17a2b8;
+    }
+    
+    .log-entry.warn {
+        background-color: rgba(255, 193, 7, 0.1);
+        border-left: 4px solid #ffc107;
+    }
+    
+    .log-entry.error {
+        background-color: rgba(220, 53, 69, 0.1);
+        border-left: 4px solid #dc3545;
+    }
+    
+    .log-timestamp {
+        font-size: 0.8rem;
+        color: #666;
+    }
+    
+    .log-level {
+        font-weight: bold;
+        display: inline-block;
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-size: 0.8rem;
+        margin-right: 5px;
+    }
+    
+    .log-level.info {
+        background-color: #17a2b8;
+        color: white;
+    }
+    
+    .log-level.warn {
+        background-color: #ffc107;
+        color: #212529;
+    }
+    
+    .log-level.error {
+        background-color: #dc3545;
+        color: white;
+    }
+    
+    .date-selector {
+        margin-bottom: 20px;
+    }
+    
+    .log-actions {
+        margin-bottom: 15px;
+    }
+    
+    .log-content {
+        white-space: pre-wrap;
+        word-break: break-word;
+    }
+    
+    .no-logs {
+        text-align: center;
+        padding: 30px;
+        background-color: #f8f9fa;
+        border-radius: 5px;
+    }
+    
+    .delete-confirmation {
+        display: none;
+        background: rgba(255, 240, 240, 0.95);
+        border: 1px solid #dc3545;
+        border-radius: 5px;
+        padding: 15px;
+        margin-bottom: 15px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="fas fa-list-alt me-2"></i>前端日志查看</h5>
+        <a href="{% url 'hanzi_app:index' %}" class="btn btn-outline-primary"><i class="fas fa-arrow-left me-1"></i>返回列表</a>
+    </div>
+    <div class="card-body">
+        <!-- 日期选择 -->
+        <div class="date-selector mb-4">
+            <form method="GET" action="{% url 'hanzi_app:view_frontend_logs' %}" class="row g-3">
+                <div class="col-md-3">
+                    <label for="date" class="form-label">选择日期</label>
+                    <input type="date" class="form-control" id="date" name="date" value="{{ selected_date|date:'Y-m-d' }}">
+                </div>
+                <div class="col-md-3">
+                    <label for="level" class="form-label">日志级别</label>
+                    <select class="form-select" id="level" name="level">
+                        <option value="all" {% if selected_level == 'all' %}selected{% endif %}>全部级别</option>
+                        <option value="info" {% if selected_level == 'info' %}selected{% endif %}>信息</option>
+                        <option value="warn" {% if selected_level == 'warn' %}selected{% endif %}>警告</option>
+                        <option value="error" {% if selected_level == 'error' %}selected{% endif %}>错误</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label for="search" class="form-label">搜索内容</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="search" name="search" value="{{ search_query }}" placeholder="搜索日志内容...">
+                        <button class="btn btn-primary" type="submit"><i class="fas fa-search"></i> 搜索</button>
+                    </div>
+                </div>
+                {% csrf_token %}
+            </form>
+        </div>
+        
+        <!-- 删除确认对话框 -->
+        <div id="deleteConfirmation" class="delete-confirmation mb-3">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h5 class="mb-0 text-danger"><i class="fas fa-exclamation-triangle me-2"></i>删除确认</h5>
+                <button type="button" class="btn-close" onclick="hideDeleteConfirmation()"></button>
+            </div>
+            <p id="deleteConfirmationMessage">您确定要删除这些日志吗？此操作不可撤销。</p>
+            <div class="d-flex justify-content-end gap-2">
+                <button type="button" class="btn btn-secondary" onclick="hideDeleteConfirmation()">取消</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteBtn">确认删除</button>
+            </div>
+        </div>
+        
+        <!-- 日志操作按钮 -->
+        <div class="log-actions d-flex gap-2 mb-3">
+            <button type="button" class="btn btn-outline-danger" onclick="showDeleteConfirmation('current')">
+                <i class="fas fa-trash-alt me-1"></i>删除当前日期日志
+            </button>
+            <button type="button" class="btn btn-outline-danger" onclick="showDeleteConfirmation('all')">
+                <i class="fas fa-trash-alt me-1"></i>清空所有日志
+            </button>
+            <button type="button" class="btn btn-outline-primary" onclick="refreshLogs()">
+                <i class="fas fa-sync-alt me-1"></i>刷新
+            </button>
+        </div>
+        
+        <!-- 添加"按级别删除"按钮到日志操作区 -->
+        <div class="mb-3">
+            <h5>日志操作：</h5>
+            <div class="btn-group">
+                <button id="deleteAllLogs" class="btn btn-danger btn-sm">删除所有日志</button>
+                <button id="deleteSelectedDateLog" class="btn btn-warning btn-sm">删除选中日期日志</button>
+                <div class="btn-group">
+                    <button type="button" class="btn btn-info btn-sm dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                        按级别删除
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item delete-by-level" data-level="error" href="#">删除ERROR级别</a></li>
+                        <li><a class="dropdown-item delete-by-level" data-level="warn" href="#">删除WARN级别</a></li>
+                        <li><a class="dropdown-item delete-by-level" data-level="info" href="#">删除INFO级别</a></li>
+                        <li><a class="dropdown-item delete-by-level" data-level="log" href="#">删除LOG级别</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 日志内容 -->
+        <div id="logContainer">
+            {% if logs %}
+                {% for log in logs %}
+                <div class="log-entry {{ log.level }}">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <span class="log-level {{ log.level }}">{{ log.level|upper }}</span>
+                            <span class="log-url small">{{ log.url }}</span>
+                        </div>
+                        <span class="log-timestamp">{{ log.timestamp }}</span>
+                    </div>
+                    <div class="log-content mt-2">{{ log.message }}</div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="no-logs">
+                    <i class="fas fa-search fa-3x mb-3 text-muted"></i>
+                    <h5>没有找到日志</h5>
+                    <p class="text-muted">当前条件下没有找到任何日志记录。</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block additional_js %}
+<script>
+    // 刷新日志
+    function refreshLogs() {
+        // 获取当前URL参数
+        const currentUrl = new URL(window.location.href);
+        
+        // 刷新页面
+        window.location.href = currentUrl.toString();
+    }
+    
+    // 显示删除确认对话框
+    function showDeleteConfirmation(type) {
+        const confirmation = document.getElementById('deleteConfirmation');
+        const message = document.getElementById('deleteConfirmationMessage');
+        const confirmBtn = document.getElementById('confirmDeleteBtn');
+        
+        // 设置确认按钮动作
+        if (type === 'current') {
+            const currentDate = document.getElementById('date').value;
+            message.textContent = `您确定要删除 ${currentDate || '当前日期'} 的所有日志吗？此操作不可撤销。`;
+            confirmBtn.onclick = function() {
+                deleteLogsByDate(currentDate);
+            };
+        } else if (type === 'all') {
+            message.textContent = '您确定要删除所有日志吗？此操作不可撤销且无法恢复。';
+            confirmBtn.onclick = function() {
+                deleteAllLogs();
+            };
+        }
+        
+        // 显示确认对话框
+        confirmation.style.display = 'block';
+        
+        // 平滑滚动到确认对话框
+        confirmation.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    
+    // 隐藏删除确认对话框
+    function hideDeleteConfirmation() {
+        document.getElementById('deleteConfirmation').style.display = 'none';
+    }
+    
+    // 删除指定日期的日志
+    function deleteLogsByDate(date) {
+        const formData = new FormData();
+        formData.append('date', date);
+        formData.append('csrfmiddlewaretoken', getCsrfToken());
+        
+        fetch('/api/logs/delete/', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification('success', `成功删除 ${data.count} 条日志记录。`);
+                setTimeout(() => {
+                    refreshLogs();
+                }, 1500);
+            } else {
+                showNotification('error', data.message || '删除日志失败。');
+            }
+        })
+        .catch(error => {
+            console.error('删除日志出错:', error);
+            showNotification('error', '删除日志时发生错误，请稍后重试。');
+        })
+        .finally(() => {
+            hideDeleteConfirmation();
+        });
+    }
+    
+    // 删除所有日志
+    function deleteAllLogs() {
+        const formData = new FormData();
+        formData.append('all', 'true');
+        formData.append('csrfmiddlewaretoken', getCsrfToken());
+        
+        fetch('/api/logs/delete/', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification('success', `成功删除全部 ${data.count} 条日志记录。`);
+                setTimeout(() => {
+                    refreshLogs();
+                }, 1500);
+            } else {
+                showNotification('error', data.message || '删除日志失败。');
+            }
+        })
+        .catch(error => {
+            console.error('删除所有日志出错:', error);
+            showNotification('error', '删除日志时发生错误，请稍后重试。');
+        })
+        .finally(() => {
+            hideDeleteConfirmation();
+        });
+    }
+    
+    // 获取CSRF令牌
+    function getCsrfToken() {
+        return document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
+    }
+    
+    // 显示通知
+    function showNotification(type, message) {
+        // 创建通知元素
+        const notification = document.createElement('div');
+        notification.className = `alert alert-${type === 'success' ? 'success' : 'danger'} position-fixed`;
+        notification.style.top = '20px';
+        notification.style.right = '20px';
+        notification.style.zIndex = '9999';
+        notification.style.minWidth = '300px';
+        notification.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)';
+        
+        notification.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'} me-2"></i>
+                    ${message}
+                </div>
+                <button type="button" class="btn-close" aria-label="Close"></button>
+            </div>
+        `;
+        
+        // 添加到文档
+        document.body.appendChild(notification);
+        
+        // 添加关闭按钮事件
+        notification.querySelector('.btn-close').addEventListener('click', function() {
+            document.body.removeChild(notification);
+        });
+        
+        // 自动关闭
+        setTimeout(() => {
+            if (document.body.contains(notification)) {
+                document.body.removeChild(notification);
+            }
+        }, 5000);
+    }
+    
+    // 监听表单提交事件，添加 CSRF token
+    document.addEventListener('DOMContentLoaded', function() {
+        // 添加 CSRF token 到头部
+        const csrfToken = document.createElement('meta');
+        csrfToken.setAttribute('name', 'csrf-token');
+        csrfToken.setAttribute('content', getCsrfToken());
+        document.head.appendChild(csrfToken);
+        
+        // 自动更新日期选择器
+        const dateInput = document.getElementById('date');
+        if (dateInput && !dateInput.value) {
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const day = String(today.getDate()).padStart(2, '0');
+            dateInput.value = `${year}-${month}-${day}`;
+        }
+    });
+
+    // 按级别删除日志
+    document.querySelectorAll('.delete-by-level').forEach(button => {
+        button.addEventListener('click', async function(e) {
+            e.preventDefault();
+            const level = this.getAttribute('data-level');
+            const dateSelector = document.getElementById('dateSelector');
+            const selectedDate = dateSelector.value;
+            
+            if (!selectedDate) {
+                alert('请先选择一个日期');
+                return;
+            }
+            
+            if (confirm(`确定要删除 ${selectedDate} 的所有 ${level.toUpperCase()} 级别日志吗？`)) {
+                try {
+                    const formData = new FormData();
+                    formData.append('date', selectedDate);
+                    formData.append('level', level);
+                    
+                    const response = await fetch('/api/logs/delete/', {
+                        method: 'POST',
+                        body: formData,
+                        headers: {
+                            'X-CSRFToken': getCookie('csrftoken')
+                        }
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        alert(result.message);
+                        // 重新加载日志内容
+                        loadLogContent(selectedDate);
+                    } else {
+                        alert('删除失败: ' + result.message);
+                    }
+                } catch (error) {
+                    console.error('删除日志出错:', error);
+                    alert('删除日志时出错: ' + error.message);
+                }
+            }
+        });
+    });
+</script>
+{% endblock %} 

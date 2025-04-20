@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    {% load static %}
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>导出文件 - 汉字管理系统</title>
+    <link rel="shortcut icon" type="image/x-icon" href="{% static 'images/favicon.ico' %}">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #3f51b5;
+            --secondary-color: #ff4081;
+            --light-bg: #f5f7fa;
+            --dark-text: #333;
+            --card-shadow: 0 8px 16px rgba(0,0,0,0.1);
+        }
+        
+        body { 
+            background-color: var(--light-bg);
+            font-family: 'Noto Sans SC', sans-serif;
+        }
+        
+        .navbar {
+            background-color: var(--primary-color);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .navbar-brand {
+            font-weight: 700;
+            color: white !important;
+        }
+        
+        .card {
+            border: none;
+            border-radius: 12px;
+            box-shadow: var(--card-shadow);
+            transition: transform 0.3s ease;
+            margin-bottom: 1.5rem;
+        }
+        
+        .card-header {
+            background-color: white;
+            border-bottom: 0.5px solid rgba(0, 0, 0, 0.05);
+            padding: 1rem;
+            border-radius: 12px 12px 0 0 !important;
+        }
+        .bg-primary {
+            --bs-bg-opacity: 1;
+            background-color: rgb(63 81 181) !important;
+        }
+        
+        .btn-primary {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+        
+        .btn-primary:hover {
+            background-color: #303f9f;
+            border-color: #303f9f;
+        }
+        
+        .file-item {
+            background-color: white;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transition: all 0.3s ease;
+        }
+        
+        .file-item:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        
+        .file-icon {
+            width: 40px;
+            height: 40px;
+            background-color: var(--primary-color);
+            color: white;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+            margin-right: 15px;
+        }
+        
+        .file-info {
+            flex-grow: 1;
+        }
+        
+        .file-name {
+            font-weight: 600;
+            margin-bottom: 3px;
+        }
+        
+        .file-meta {
+            font-size: 0.85rem;
+            color: #6c757d;
+        }
+        
+        .file-actions {
+            display: flex;
+            align-items: center;
+        }
+        
+        .delete-btn {
+            margin-left: 10px;
+            color: #dc3545;
+            background: none;
+            border: none;
+            font-size: 1.25rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .delete-btn:hover {
+            color: #bd2130;
+            transform: scale(1.1);
+        }
+        
+        .export-header {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 25px 0;
+            margin-bottom: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+        
+        .timestamp {
+            font-size: 0.9rem;
+            color: #ffffff;
+            margin-top: 5px;
+        }
+                
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .animated {
+            animation: fadeIn 0.5s ease-out forwards;
+        }
+        
+        .btn-back {
+            margin-bottom: 1rem;
+        }
+        
+        .notification {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 15px 25px;
+            border-radius: 8px;
+            color: white;
+            z-index: 1000;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            transition: all 0.3s ease;
+            transform: translateY(100px);
+            opacity: 0;
+        }
+        
+        .notification.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+        
+        .success {
+            background-color: #28a745;
+        }
+        
+        .error {
+            background-color: #dc3545;
+        }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar navbar-expand-lg navbar-dark mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="{% url 'hanzi_app:index' %}">
+                <i class="fas fa-book-open me-2"></i>汉字管理系统
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'hanzi_app:index' %}">
+                            <i class="fas fa-home me-1"></i>首页
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'hanzi_app:stroke_search' %}">
+                            <i class="fas fa-search me-1"></i>笔顺搜索
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'hanzi_app:add' %}">
+                            <i class="fas fa-plus-circle me-1"></i>添加汉字
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'hanzi_app:import_data' %}">
+                            <i class="fas fa-file-import me-1"></i>数据导入
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- 返回按钮 -->
+        <a href="{{ return_url }}" class="btn btn-outline-primary btn-back">
+            <i class="fas fa-arrow-left me-1"></i>返回汉字列表
+        </a>
+        
+        <!-- 导出标题 -->
+        <div class="export-header text-center animated">
+            <h2><i class="fas fa-file-export me-2"></i>导出文件</h2>
+            <p class="mb-0">已成功导出 {{ export_count }} 条汉字记录</p>
+            {% if export_timestamp %}
+            <div class="timestamp">导出时间：{{ export_timestamp|date:"Y-m-d H:i:s" }}</div>
+            {% endif %}
+        </div>
+        
+        <!-- 导出文件列表 -->
+        <div class="card animated">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-download me-2"></i>下载导出文件</h5>
+                <button onclick="cleanupAllFiles()" class="btn btn-sm btn-danger">
+                    <i class="fas fa-trash-alt me-1"></i>清理所有文件
+                </button>
+            </div>
+            <div class="card-body">
+                <p>请选择需要下载的文件：</p>
+                
+                <!-- 添加导出选项 -->
+                <div class="export-options mb-3 p-3 bg-light rounded">
+                    <h6><i class="fas fa-cog me-2"></i>导出选项</h6>
+                    <div class="form-check mt-2">
+                        <input class="form-check-input" type="checkbox" id="includeImagesOption" checked>
+                        <label class="form-check-label" for="includeImagesOption">
+                            在Excel中包含手写汉字图片
+                        </label>
+                        <div class="form-text text-muted">
+                            启用此选项将在Excel表格中添加图片列，显示对应的汉字手写图片
+                        </div>
+                    </div>
+                    <button class="btn btn-primary btn-sm mt-2" onclick="applyExportOptions()">
+                        <i class="fas fa-sync-alt me-1"></i>应用选项
+                    </button>
+                </div>
+                
+                <div id="file-list">
+                    {% if file_list %}
+                        {% for file in file_list %}
+                            <div class="file-item animated" id="file-item-{{ forloop.counter }}" data-filename="{{ file.name }}">
+                                <div class="d-flex align-items-center">
+                                    <div class="file-icon">
+                                        <i class="fas {{ file.icon }}"></i>
+                                    </div>
+                                    <div class="file-info">
+                                        <div class="file-name">{{ file.type }}</div>
+                                        <div class="file-meta">{{ file.name }} | {{ file.size }}</div>
+                                    </div>
+                                </div>
+                                <div class="file-actions">
+                                    <button class="btn btn-primary btn-sm" onclick="downloadFile('{{ file.name }}')">
+                                        <i class="fas fa-download me-1"></i>下载
+                                    </button>
+                                    <button class="delete-btn" onclick="deleteFile('{{ file.name }}')">
+                                        <i class="fas fa-times-circle"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-circle me-2"></i>没有可用的导出文件
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- 帮助卡片 -->
+        <div class="card animated">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>文件说明</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <div class="text-center mb-2">
+                            <i class="fas fa-file-code fa-3x text-primary"></i>
+                        </div>
+                        <h6 class="text-center">JSON数据</h6>
+                        <p class="small text-center">JSON格式的汉字数据信息</p>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="text-center mb-2">
+                            <i class="fas fa-file-excel fa-3x text-success"></i>
+                        </div>
+                        <h6 class="text-center">Excel数据</h6>
+                        <p class="small text-center">格式化的表格数据，可选择包含汉字图片</p>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="text-center mb-2">
+                            <i class="fas fa-file-archive fa-3x text-info"></i>
+                        </div>
+                        <h6 class="text-center">图片压缩包</h6>
+                        <p class="small text-center">包含选中汉字的图片文件</p>
+                    </div>
+                </div>
+                <div class="alert alert-info">
+                    <i class="fas fa-lightbulb me-2"></i>提示：文件将在下载后请删除不需要的文件。
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 通知消息 -->
+    <div id="notification" class="notification"></div>
+
+    <footer class="bg-dark text-white mt-5 py-4">
+        <div class="container text-center">
+            <p class="mb-0">© 汉字管理平台 | 作者:ShiqinGuo</p>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // 下载文件
+        function downloadFile(filename) {
+            // 显示下载状态
+            const downloadBtn = document.querySelector(`button[onclick="downloadFile('${filename}')"]`);
+            if (downloadBtn) {
+                downloadBtn.disabled = true;
+                downloadBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>下载中...';
+            }
+            
+            // 获取当前图片选项状态
+            const includeImages = document.getElementById('includeImagesOption').checked;
+            
+            // 创建下载链接
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            // 将选项作为URL参数传递
+            const downloadUrl = "{% url 'hanzi_app:download_file' 'FILENAME' %}".replace('FILENAME', filename);
+            a.href = downloadUrl + (downloadUrl.includes('?') ? '&' : '?') + 'include_images=' + includeImages;
+            a.download = filename;
+            
+            // 添加到文档并触发点击
+            document.body.appendChild(a);
+            a.click();
+            
+            // 清理DOM
+            setTimeout(() => {
+                document.body.removeChild(a);
+                
+                // 恢复按钮状态
+                if (downloadBtn) {
+                    setTimeout(() => {
+                        downloadBtn.disabled = false;
+                        downloadBtn.innerHTML = '<i class="fas fa-download me-1"></i>下载';
+                    }, 1000);
+                }
+            }, 100);
+        }
+        
+        // 应用导出选项
+        function applyExportOptions() {
+            const includeImages = document.getElementById('includeImagesOption').checked;
+            
+            // 向服务器发送请求，应用新的导出选项
+            fetch("{% url 'hanzi_app:apply_export_options' %}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify({
+                    include_images: includeImages
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification('导出选项已应用，请重新导出文件', 'success');
+                } else {
+                    showNotification(data.message || '应用选项失败', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('应用选项出错:', error);
+                showNotification('应用选项失败，请重试', 'error');
+            });
+        }
+        
+        // 获取CSRF Cookie
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+        
+        // 删除单个文件
+        function deleteFile(filename) {
+            if (confirm(`确定要删除 ${filename} 吗？`)) {
+                const fileItem = document.querySelector(`[data-filename="${filename}"]`);
+                if (fileItem) {
+                    fileItem.style.opacity = '0.5';
+                }
+                
+                fetch("{% url 'hanzi_app:delete_export_file' 'FILENAME' %}".replace('FILENAME', filename))
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            // 移除文件项
+                            if (fileItem) {
+                                fileItem.style.opacity = '0';
+                                setTimeout(() => {
+                                    fileItem.remove();
+                                    // 检查是否还有文件
+                                    if (document.querySelectorAll('.file-item').length === 0) {
+                                        document.getElementById('file-list').innerHTML = `
+                                            <div class="alert alert-warning">
+                                                <i class="fas fa-exclamation-circle me-2"></i>没有可用的导出文件
+                                            </div>
+                                        `;
+                                    }
+                                }, 300);
+                            }
+                            showNotification('删除成功', 'success');
+                        } else {
+                            showNotification(data.message || '删除失败', 'error');
+                            // 恢复文件项显示
+                            if (fileItem) {
+                                fileItem.style.opacity = '1';
+                            }
+                        }
+                    })
+                    .catch(error => {
+                        console.error('删除出错:', error);
+                        showNotification('删除失败，请重试', 'error');
+                        // 恢复文件项显示
+                        if (fileItem) {
+                            fileItem.style.opacity = '1';
+                        }
+                    });
+            }
+        }
+        
+        // 清理所有文件
+        function cleanupAllFiles() {
+            if (confirm('确定要清理所有导出文件吗？这将删除所有当前导出的文件。')) {
+                // 设置所有文件项为半透明
+                document.querySelectorAll('.file-item').forEach(item => {
+                    item.style.opacity = '0.5';
+                });
+                
+                fetch("{% url 'hanzi_app:cleanup_exports' %}")
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            // 清空文件列表
+                            document.querySelectorAll('.file-item').forEach(item => {
+                                item.style.opacity = '0';
+                            });
+                            
+                            setTimeout(() => {
+                                document.getElementById('file-list').innerHTML = `
+                                    <div class="alert alert-warning">
+                                        <i class="fas fa-exclamation-circle me-2"></i>没有可用的导出文件
+                                    </div>
+                                `;
+                            }, 300);
+                            
+                            showNotification(data.message || '所有文件已清理', 'success');
+                        } else {
+                            showNotification(data.message || '清理失败', 'error');
+                            // 恢复文件项显示
+                            document.querySelectorAll('.file-item').forEach(item => {
+                                item.style.opacity = '1';
+                            });
+                        }
+                    })
+                    .catch(error => {
+                        console.error('清理出错:', error);
+                        showNotification('清理失败，请重试', 'error');
+                        // 恢复文件项显示
+                        document.querySelectorAll('.file-item').forEach(item => {
+                            item.style.opacity = '1';
+                        });
+                    });
+            }
+        }
+        
+        // 显示通知
+        function showNotification(message, type) {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.className = `notification ${type}`;
+            notification.classList.add('show');
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 3000);
+        }
+        
+        // 页面加载后添加动画延迟
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('.animated').forEach(function(element, index) {
+                element.style.animationDelay = (index * 0.1) + 's';
+            });
+        });
+    </script>
+</body>
+</html> 

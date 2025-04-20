@@ -1,3 +1,7 @@
+{% extends "hanzi_app/base.html" %}
+
+{% block title %}编辑汉字{% endblock %}
+
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -123,13 +127,9 @@
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0"><i class="fas fa-edit me-2"></i>编辑汉字 - {{ hanzi.character }}</h5>
-                <div>
-                    <a href="{% url 'hanzi_app:index' %}?page={{ request.GET.return_page|default:'1' }}&{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}{% if request.GET.stroke_count %}stroke_count={{ request.GET.stroke_count }}&{% endif %}{% if request.GET.structure %}structure={{ request.GET.structure }}&{% endif %}{% if request.GET.variant %}variant={{ request.GET.variant }}&{% endif %}{% if request.GET.level %}level={{ request.GET.level }}{% endif %}"
-                       class="btn btn-outline-primary"
-                       id="backToListBtn">
-                        <i class="fas fa-arrow-left me-1"></i>返回列表
-                    </a>
-                </div>
+                <a href="{{ back_url }}" class="btn btn-outline-primary">
+                    <i class="fas fa-arrow-left me-1"></i>返回
+                </a>
             </div>
             <div class="card-body">
                 {% if success_message %}
@@ -265,15 +265,12 @@
         if (backToListBtn) {
             // 确保返回链接包含所有原始参数
             const params = JSON.parse(localStorage.getItem('lastIndexParams') || '{}');
-            const searchParams = new URLSearchParams(params);
-            const baseUrl = backToListBtn.getAttribute('href').split('?')[0];
-            backToListBtn.href = `${baseUrl}?${searchParams.toString()}`;
             
-            // 点击时设置恢复标志
-            backToListBtn.addEventListener('click', function() {
-                sessionStorage.setItem('shouldRestoreScroll', 'true');
-                console.log('已设置返回标志，将恢复滚动位置');
-            });
+            const searchParams = new URLSearchParams(params);
+            
+            const baseUrl = backToListBtn.getAttribute('href').split('?')[0];
+            const newUrl = `${baseUrl}?${searchParams.toString()}`;
+            backToListBtn.href = newUrl;
         }
         
         // 为导航栏返回按钮添加相同的逻辑
@@ -281,13 +278,10 @@
         if (navBackToListBtn) {
             const params = JSON.parse(localStorage.getItem('lastIndexParams') || '{}');
             const searchParams = new URLSearchParams(params);
-            const baseUrl = navBackToListBtn.getAttribute('href').split('?')[0];
-            navBackToListBtn.href = `${baseUrl}?${searchParams.toString()}`;
             
-            navBackToListBtn.addEventListener('click', function() {
-                sessionStorage.setItem('shouldRestoreScroll', 'true');
-                console.log('已设置返回标志，将恢复滚动位置');
-            });
+            const baseUrl = navBackToListBtn.getAttribute('href').split('?')[0];
+            const newUrl = `${baseUrl}?${searchParams.toString()}`;
+            navBackToListBtn.href = newUrl;
         }
     });
     // 处理表单提交
@@ -366,7 +360,6 @@
         // 为返回详情按钮添加事件监听器
         if (backToDetailBtn) {
             backToDetailBtn.addEventListener('click', function() {
-                sessionStorage.setItem('shouldRestoreScroll', 'true');
                 console.log('已设置返回标志，将恢复滚动位置');
             });
         }

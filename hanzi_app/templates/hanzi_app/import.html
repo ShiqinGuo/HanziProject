@@ -385,22 +385,16 @@
             }
         });
 
-        window.addEventListener('load', () => {
-            const backButtons = document.querySelectorAll('a[href="{% url "hanzi_app:index" %}"]');
+        // 初始化返回按钮
+        document.addEventListener('DOMContentLoaded', function() {
+            const backButtons = document.querySelectorAll('.back-btn');
+            
             if (backButtons.length > 0) {
                 const params = JSON.parse(localStorage.getItem('lastIndexParams') || '{}');
                 const searchParams = new URLSearchParams(params);
                 
                 backButtons.forEach(button => {
-                    button.addEventListener('click', function() {
-                        // 保存当前滚动位置
-                        localStorage.setItem('lastScrollPosition', window.scrollY);
-                        console.log('保存滚动位置:', window.scrollY);
-                        
-                        // 设置返回标志
-                        sessionStorage.setItem('shouldRestoreScroll', 'true');
-                        console.log('已设置返回标志，将恢复滚动位置');
-                    });
+                    // 移除与滚动位置相关的代码
                 });
             }
         });

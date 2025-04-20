@@ -1,0 +1,232 @@
+{% extends "hanzi_app/base.html" %}
+
+{% block title %}笔顺搜索 - 汉字管理系统{% endblock %}
+
+{% block additional_style %}
+<style>
+    .stroke-btn {
+        margin: 5px;
+        font-size: 1.1rem;
+        min-width: 50px;
+    }
+    
+    .stroke-pattern-display {
+        font-size: 1.2rem;
+        padding: 10px;
+        background: #f0f2f5;
+        border-radius: 8px;
+        margin-bottom: 15px;
+        min-height: 50px;
+    }
+    
+    .hanzi-character {
+        font-size: 2.5rem;
+        font-weight: bold;
+        margin-right: 1rem;
+        width: 60px;
+        height: 60px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #f0f2f5;
+        border-radius: 8px;
+    }
+    
+    /* 动画效果 */
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .animated {
+        animation: fadeIn 0.5s ease-out forwards;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0"><i class="fas fa-search me-2"></i>笔顺搜索</h5>
+        <a href="{% url 'hanzi_app:index' %}" class="btn btn-outline-primary"><i class="fas fa-arrow-left me-1"></i>返回列表</a>
+    </div>
+    <div class="card-body">
+        <div class="row mb-4">
+            <div class="col-12">
+                <p class="lead">通过笔顺组合查找汉字，选择或输入笔顺序列：</p>
+                
+                <!-- 笔顺选择按钮 -->
+                <div class="mb-3">
+                    {% for stroke in common_strokes %}
+                        <button type="button" class="btn btn-outline-primary stroke-btn" onclick="addStroke('{{ stroke }}')">{{ stroke }}</button>
+                    {% endfor %}
+                    <button type="button" class="btn btn-outline-danger stroke-btn" onclick="clearStrokes()">清空</button>
+                </div>
+                
+                <!-- 当前笔顺显示 -->
+                <div class="stroke-pattern-display" id="strokePattern">
+                    {{ stroke_pattern }}
+                </div>
+                
+                <!-- 搜索表单 -->
+                <form method="GET" action="{% url 'hanzi_app:stroke_search' %}" id="searchForm">
+                    <div class="input-group mb-3">
+                        <input type="hidden" name="stroke_pattern" id="strokePatternInput" value="{{ stroke_pattern }}">
+                        <button class="btn btn-primary" type="submit">
+                            <i class="fas fa-search me-1"></i>检索
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <!-- 搜索结果 -->
+        {% if page_obj %}
+            <div class="row mb-3">
+                <div class="col-12">
+                    <h5>检索结果 ({{ results_count }})</h5>
+                    <hr>
+                </div>
+            </div>
+            
+            <div class="row">
+                {% for hanzi in page_obj %}
+                    <div class="col-md-4 mb-4 animated" style="animation-delay: {{ hanzi.animation_delay }}ms">
+                        <div class="card h-100">
+                            <div class="card-body d-flex">
+                                <div class="hanzi-character">{{ hanzi.character }}</div>
+                                <div>
+                                    <h5 class="card-title">{{ hanzi.id }}</h5>
+                                    <p class="card-text mb-1">
+                                        <small>拼音: {{ hanzi.pinyin }}</small>
+                                    </p>
+                                    <p class="card-text mb-1">
+                                        <small>笔画: {{ hanzi.stroke_count }}</small>
+                                    </p>
+                                    <p class="card-text">
+                                        <small>结构: {{ hanzi.structure }}</small>
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="card-footer bg-transparent">
+                                <a href="{% url 'hanzi_app:hanzi_detail' hanzi.id %}" class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-info-circle me-1"></i>详情
+                                </a>
+                                <a href="{% url 'hanzi_app:edit_hanzi' hanzi.id %}" class="btn btn-sm btn-outline-secondary">
+                                    <i class="fas fa-edit me-1"></i>编辑
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+            
+            <!-- 分页 -->
+            {% if page_obj.has_other_pages %}
+                <div class="d-flex justify-content-between align-items-center mt-4">
+                    <div>
+                        <span class="text-muted">共 {{ page_obj.paginator.num_pages }} 页</span>
+                    </div>
+                    <nav aria-label="Page navigation">
+                        <ul class="pagination mb-0">
+                            {% if page_obj.has_previous %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?stroke_pattern={{ stroke_pattern }}&page=1" aria-label="First">
+                                        <span aria-hidden="true">&laquo;&laquo;</span>
+                                    </a>
+                                </li>
+                                <li class="page-item">
+                                    <a class="page-link" href="?stroke_pattern={{ stroke_pattern }}&page={{ page_obj.previous_page_number }}" aria-label="Previous">
+                                        <span aria-hidden="true">&laquo;</span>
+                                    </a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled">
+                                    <span class="page-link">&laquo;&laquo;</span>
+                                </li>
+                                <li class="page-item disabled">
+                                    <span class="page-link">&laquo;</span>
+                                </li>
+                            {% endif %}
+                            
+                            {% for i in page_obj.paginator.page_range %}
+                                {% if page_obj.number == i %}
+                                    <li class="page-item active">
+                                        <span class="page-link">{{ i }}</span>
+                                    </li>
+                                {% elif i > page_obj.number|add:'-3' and i < page_obj.number|add:'3' %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?stroke_pattern={{ stroke_pattern }}&page={{ i }}">{{ i }}</a>
+                                    </li>
+                                {% endif %}
+                            {% endfor %}
+                            
+                            {% if page_obj.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?stroke_pattern={{ stroke_pattern }}&page={{ page_obj.next_page_number }}" aria-label="Next">
+                                        <span aria-hidden="true">&raquo;</span>
+                                    </a>
+                                </li>
+                                <li class="page-item">
+                                    <a class="page-link" href="?stroke_pattern={{ stroke_pattern }}&page={{ page_obj.paginator.num_pages }}" aria-label="Last">
+                                        <span aria-hidden="true">&raquo;&raquo;</span>
+                                    </a>
+                                </li>
+                            {% else %}
+                                <li class="page-item disabled">
+                                    <span class="page-link">&raquo;</span>
+                                </li>
+                                <li class="page-item disabled">
+                                    <span class="page-link">&raquo;&raquo;</span>
+                                </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                </div>
+            {% endif %}
+        {% else %}
+            {% if stroke_pattern %}
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>没有找到符合条件的汉字，请尝试其他笔顺组合。
+                </div>
+            {% endif %}
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block additional_js %}
+<script>
+    // 添加笔顺
+    function addStroke(stroke) {
+        const patternDisplay = document.getElementById('strokePattern');
+        const inputField = document.getElementById('strokePatternInput');
+        
+        // 更新显示
+        if (patternDisplay.textContent) {
+            patternDisplay.textContent += ' ' + stroke;
+        } else {
+            patternDisplay.textContent = stroke;
+        }
+        
+        // 更新隐藏输入字段
+        inputField.value = patternDisplay.textContent;
+    }
+    
+    // 清空笔顺
+    function clearStrokes() {
+        document.getElementById('strokePattern').textContent = '';
+        document.getElementById('strokePatternInput').value = '';
+    }
+    
+    // 页面加载完成后
+    document.addEventListener('DOMContentLoaded', function() {
+        // 处理动画延迟
+        document.querySelectorAll('.animated').forEach(function(element) {
+            if (element.style.animationDelay) {
+                element.style.opacity = 0; // 开始时不可见
+            }
+        });
+    });
+</script>
+{% endblock %} 

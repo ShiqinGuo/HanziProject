@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    {% load static %}
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>导出选项 - 汉字管理系统</title>
+    <link rel="shortcut icon" type="image/x-icon" href="{% static 'images/favicon.ico' %}">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #3f51b5;
+            --secondary-color: #ff4081;
+            --light-bg: #f5f7fa;
+            --dark-text: #333;
+            --card-shadow: 0 8px 16px rgba(0,0,0,0.1);
+        }
+        
+        body { 
+            background-color: var(--light-bg);
+            font-family: 'Noto Sans SC', sans-serif;
+        }
+        
+        .navbar {
+            background-color: var(--primary-color);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .navbar-brand {
+            font-weight: 700;
+            color: white !important;
+        }
+        
+        .card {
+            border: none;
+            border-radius: 12px;
+            box-shadow: var(--card-shadow);
+            transition: transform 0.3s ease;
+        }
+        
+        .card-header {
+            background-color: white;
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+            padding: 1.5rem;
+            border-radius: 12px 12px 0 0 !important;
+        }
+        
+        .btn-primary {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+        
+        .btn-primary:hover {
+            background-color: #303f9f;
+            border-color: #303f9f;
+        }
+        
+        .btn-secondary {
+            background-color: #6c757d;
+            border-color: #6c757d;
+        }
+        
+        .btn-secondary:hover {
+            background-color: #5a6268;
+            border-color: #545b62;
+        }
+        
+        .form-check-input:checked {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar navbar-expand-lg navbar-dark mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="{% url 'hanzi_app:index' %}">
+                <i class="fas fa-book-open me-2"></i>汉字管理系统
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{% url 'hanzi_app:index' %}">
+                            <i class="fas fa-home me-1"></i>首页
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{% url 'hanzi_app:stroke_search' %}">
+                            <i class="fas fa-search me-1"></i>笔顺搜索
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{% url 'hanzi_app:add' %}">
+                            <i class="fas fa-plus-circle me-1"></i>添加汉字
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{% url 'hanzi_app:import_data' %}">
+                            <i class="fas fa-file-import me-1"></i>数据导入
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <h2 class="mb-4">导出选项</h2>
+        
+        {% if error_message %}
+        <div class="alert alert-danger">
+            {{ error_message }}
+        </div>
+        {% endif %}
+        
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                选择导出字段和选项
+            </div>
+            <div class="card-body">
+                <form method="post" action="{% url 'hanzi_app:export_hanzi' %}">
+                    {% csrf_token %}
+                    
+                    <div class="form-group mb-4">
+                        <h5>基本字段</h5>
+                        <div class="row">
+                            {% for field in available_fields %}
+                            <div class="col-md-4 mb-2">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="fields" 
+                                           value="{{ field.id }}" id="field_{{ field.id }}" 
+                                           {% if field.id == 'character' or field.checked %}checked{% endif %}
+                                           {% if field.id == 'character' %}disabled{% endif %}>
+                                    <label class="form-check-label" for="field_{{ field.id }}">
+                                        {{ field.name }} {% if field.id == 'character' %}(必选){% endif %}
+                                    </label>
+                                    {% if field.id == 'character' %}
+                                    <input type="hidden" name="fields" value="character">
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    
+                    <div class="form-group mb-4">
+                        <h5>图片选项</h5>
+                        <div class="row">
+                            <div class="col-md-6 mb-2">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="include_images" 
+                                           value="true" id="include_images">
+                                    <label class="form-check-label" for="include_images">
+                                        包含汉字手写图片
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-2">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="include_standard_images" 
+                                           value="true" id="include_standard_images">
+                                    <label class="form-check-label" for="include_standard_images">
+                                        包含标准楷体图片
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i> 导出将包含满足以下条件的汉字:
+                        <ul class="mt-2 mb-0">
+                            {% if filter_info.structure %}
+                                <li>结构: {{ filter_info.structure }}</li>
+                            {% endif %}
+                            {% if filter_info.variant %}
+                                <li>异体: {{ filter_info.variant }}</li>
+                            {% endif %}
+                            {% if filter_info.level %}
+                                <li>级别: {{ filter_info.level }}</li>
+                            {% endif %}
+                            {% if filter_info.search_term %}
+                                <li>搜索词: {{ filter_info.search_term }}</li>
+                            {% endif %}
+                            {% if filter_info.stroke_count %}
+                                <li>笔画数: {{ filter_info.stroke_count }}</li>
+                            {% endif %}
+                            <li>符合条件的汉字总数: <strong>{{ filtered_hanzi_count }}</strong></li>
+                        </ul>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between mt-4">
+                        <a href="{{ return_url|default:'/' }}" class="btn btn-secondary">返回</a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-file-export"></i> 生成导出文件
+                        </button>
+                    </div>
+                    
+                    <!-- 保存返回URL -->
+                    <input type="hidden" name="return_url" value="{{ return_url|default:'/' }}">
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- 页脚 -->
+    <footer class="bg-light text-center text-muted py-4 mt-5">
+        <div class="container">
+            <p class="mb-0">© 2023 汉字管理系统. 保留所有权利.</p>
+        </div>
+    </footer>
+
+    <!-- JavaScript -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</body>
+</html> 

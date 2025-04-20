@@ -269,10 +269,9 @@
                 const baseUrl = backToListBtn.getAttribute('href').split('?')[0];
                 backToListBtn.href = `${baseUrl}?${searchParams.toString()}`;
                 
-                // 点击时设置恢复标志
+                // 移除滚动位置代码
                 backToListBtn.addEventListener('click', function() {
-                    sessionStorage.setItem('shouldRestoreScroll', 'true');
-                    console.log('已设置返回标志，将恢复滚动位置');
+                    // 已删除滚动位置记忆相关代码
                 });
             }
         });
@@ -314,7 +313,6 @@
                     sessionStorage.setItem('operationCompleted', 'true');
                     const params = JSON.parse(localStorage.getItem('lastIndexParams') || '{}');
                     sessionStorage.setItem('returnToParams', JSON.stringify(params));
-                    sessionStorage.setItem('shouldRestoreScroll', 'true');
                 });
             }
         });
