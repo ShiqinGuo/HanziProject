@@ -170,6 +170,18 @@
                                 </div>
                             </div>
                         </div>
+                        
+                        <div class="row mt-3">
+                            <div class="col-md-12">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="embed_images_in_excel" 
+                                           value="true" id="embed_images_in_excel">
+                                    <label class="form-check-label" for="embed_images_in_excel">
+                                        <strong>在Excel文件中添加图片列</strong> <span class="text-muted">(选中此项会在表格中添加额外的图片列，可直接在Excel中查看图片，无需单独打开图片文件)</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     
                     <div class="alert alert-info">
@@ -218,5 +230,46 @@
     <!-- JavaScript -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    
+    <script>
+        // 获取图片选项和嵌入选项的DOM元素
+        const includeImagesCheckbox = document.getElementById('include_images');
+        const includeStandardImagesCheckbox = document.getElementById('include_standard_images');
+        const embedImagesCheckbox = document.getElementById('embed_images_in_excel');
+        
+        // 添加嵌入图片选项的变更监听器
+        embedImagesCheckbox.addEventListener('change', function() {
+            if (this.checked) {
+                // 提示用户需要选择至少一种图片类型
+                if (!includeImagesCheckbox.checked && !includeStandardImagesCheckbox.checked) {
+                    alert('要在Excel中嵌入图片，请至少选择一种图片类型（手写图片或标准楷体图片）');
+                    this.checked = false;
+                }
+            }
+        });
+        
+        // 添加图片选项的变更监听器
+        includeImagesCheckbox.addEventListener('change', function() {
+            // 如果取消选择且另一个也未选择，则禁用嵌入选项
+            if (!this.checked && !includeStandardImagesCheckbox.checked) {
+                embedImagesCheckbox.checked = false;
+            }
+        });
+        
+        includeStandardImagesCheckbox.addEventListener('change', function() {
+            // 如果取消选择且另一个也未选择，则禁用嵌入选项
+            if (!this.checked && !includeImagesCheckbox.checked) {
+                embedImagesCheckbox.checked = false;
+            }
+        });
+        
+        // 表单提交验证
+        document.querySelector('form').addEventListener('submit', function(event) {
+            if (embedImagesCheckbox.checked && !includeImagesCheckbox.checked && !includeStandardImagesCheckbox.checked) {
+                event.preventDefault();
+                alert('要在Excel中嵌入图片，请至少选择一种图片类型（手写图片或标准楷体图片）');
+            }
+        });
+    </script>
 </body>
 </html> 

@@ -33,6 +33,7 @@ from django.contrib import messages
 from rest_framework import serializers
 from urllib.parse import urlencode
 import re
+import openpyxl
 
 # 在文件顶部添加日志配置
 logger = logging.getLogger(__name__)
@@ -1067,8 +1068,17 @@ def export_hanzi(request):
             messages.error(request, "请至少选择一个导出字段")
             return redirect(request.path)
         
+        # 获取图片选项
         include_images = 'include_images' in request.POST
         include_standard_images = 'include_standard_images' in request.POST
+        embed_images_in_excel = 'embed_images_in_excel' in request.POST
+        
+        # 如果要在Excel中嵌入图片，需要确保图片字段被选中
+        if embed_images_in_excel:
+            if include_images and 'image_path' not in selected_fields:
+                selected_fields.append('image_path')
+            if include_standard_images and 'standard_image' not in selected_fields:
+                selected_fields.append('standard_image')
         
         # 从会话获取筛选参数
         export_filters = request.session.get('export_filters', {})
@@ -1090,7 +1100,8 @@ def export_hanzi(request):
             filtered_hanzi, 
             include_images,
             include_standard_images,
-            selected_fields
+            selected_fields,
+            embed_images_in_excel
         )
         export_files['count'] = filtered_hanzi.count()  # 添加记录数量
         
@@ -1301,7 +1312,7 @@ def get_filtered_hanzi_list(search, structure, level, variant, stroke_count, ids
     
     return queryset
 
-def generate_export_files(filtered_hanzi, include_images=False, include_standard_images=False, selected_fields=[]):
+def generate_export_files(filtered_hanzi, include_images=False, include_standard_images=False, selected_fields=[], embed_images_in_excel=False):
     """生成导出文件"""
     try:
         # 创建导出目录
@@ -1337,7 +1348,7 @@ def generate_export_files(filtered_hanzi, include_images=False, include_standard
         
         # 导出Excel文件
         excel_file_path = os.path.join(export_dir, f'{file_prefix}.xlsx')
-        export_to_excel(filtered_hanzi, excel_file_path, selected_fields)
+        export_to_excel(filtered_hanzi, excel_file_path, selected_fields, embed_images_in_excel)
         result['excel'] = os.path.basename(excel_file_path)
         
         # 如果包含图片，创建ZIP文件
@@ -1361,7 +1372,7 @@ def generate_export_files(filtered_hanzi, include_images=False, include_standard
                             if os.path.exists(image_path):
                                 # 获取不带后缀的文件名
                                 filename = os.path.basename(hanzi.image_path)
-                                base_filename = os.path.splitext(filename)[0]
+                                base_filename = os.path.splitext(filename)[0] 
                                 # 使用不带后缀的文件名作为目标文件名
                                 zipf.write(image_path, f'images/{base_filename}' + os.path.splitext(image_path)[1])
                                 images_added += 1
@@ -1405,8 +1416,8 @@ def custom_serialize_hanzi(queryset, fields):
         result.append(item)
     return result
 
-def export_to_excel(filtered_hanzi, excel_file_path, selected_fields):
-    """将汉字数据导出到Excel文件"""
+def export_to_excel(filtered_hanzi, excel_file_path, selected_fields, embed_images_in_excel=False):
+    """将汉字数据导出到Excel文件，并可选择将图片嵌入到Excel中"""
     try:
         # 创建一个DataFrame来存储数据
         data = []
@@ -1416,6 +1427,10 @@ def export_to_excel(filtered_hanzi, excel_file_path, selected_fields):
                 if field == 'image_path' and hanzi.image_path:
                     # 处理图片路径，只保留文件名部分（不含后缀）
                     filename = os.path.basename(hanzi.image_path)
+                    item[field] = os.path.splitext(filename)[0]  # 不含后缀的文件名
+                elif field == 'standard_image' and hanzi.standard_image:
+                    # 处理标准图片路径
+                    filename = os.path.basename(hanzi.standard_image)
                     item[field] = os.path.splitext(filename)[0]  # 不含后缀的文件名
                 else:
                     # 获取其他字段值
@@ -1427,15 +1442,125 @@ def export_to_excel(filtered_hanzi, excel_file_path, selected_fields):
         # 创建DataFrame
         df = pd.DataFrame(data)
         
-        # 导出到Excel
-        with pd.ExcelWriter(excel_file_path, engine='openpyxl') as writer:
-            df.to_excel(writer, index=False, sheet_name='汉字数据')
+        # 如果不需要嵌入图片，使用简单的Pandas导出
+        if not embed_images_in_excel:
+            with pd.ExcelWriter(excel_file_path, engine='openpyxl') as writer:
+                df.to_excel(writer, index=False, sheet_name='汉字数据')
+                
+                # 调整列宽
+                worksheet = writer.sheets['汉字数据']
+                for idx, col in enumerate(df.columns):
+                    column_width = max(df[col].astype(str).map(len).max(), len(col) + 2)
+                    worksheet.column_dimensions[chr(65 + idx)].width = column_width
             
-            # 调整列宽
-            worksheet = writer.sheets['汉字数据']
-            for idx, col in enumerate(df.columns):
-                column_width = max(df[col].astype(str).map(len).max(), len(col) + 2)
-                worksheet.column_dimensions[chr(65 + idx)].width = column_width
+            return True
+        
+        # 需要嵌入图片时，使用openpyxl直接操作
+        workbook = openpyxl.Workbook()
+        worksheet = workbook.active
+        worksheet.title = '汉字数据'
+        
+        # 检查是否需要添加图片列
+        has_image_column = 'image_path' in selected_fields
+        has_standard_image_column = 'standard_image' in selected_fields
+        
+        # 创建新的列表，包含原始字段和额外的图片列
+        all_columns = list(selected_fields)
+        
+        # 在原字段列表后添加图片列
+        if has_image_column:
+            all_columns.append('手写图片')
+        if has_standard_image_column:
+            all_columns.append('标准楷体图片')
+        
+        # 添加表头
+        for col_idx, column_name in enumerate(all_columns, 1):
+            cell = worksheet.cell(row=1, column=col_idx)
+            cell.value = column_name
+            cell.font = openpyxl.styles.Font(bold=True)
+            cell.alignment = openpyxl.styles.Alignment(horizontal='center')
+        
+        # 添加数据行
+        for row_idx, hanzi in enumerate(filtered_hanzi, 2):
+            # 添加常规数据列
+            col_idx = 1
+            for field in selected_fields:
+                cell = worksheet.cell(row=row_idx, column=col_idx)
+                
+                # 获取字段值
+                value = getattr(hanzi, field, '')
+                
+                # 对于图片路径字段，只显示文件名部分（不含路径和扩展名）
+                if field in ['image_path', 'standard_image'] and value:
+                    filename = os.path.basename(value)
+                    cell.value = os.path.splitext(filename)[0]  # 不含后缀的文件名
+                elif value is not None:
+                    cell.value = value
+                    
+                col_idx += 1
+            
+            # 添加手写图片列
+            if has_image_column:
+                if hanzi.image_path:
+                    try:
+                        img_path = os.path.join(settings.MEDIA_ROOT, hanzi.image_path)
+                        if os.path.exists(img_path):
+                            img = openpyxl.drawing.image.Image(img_path)
+                            # 设置图片大小
+                            img.width = 100
+                            img.height = 100
+                            # 计算图片位置 - 使用新的图片列
+                            cell_address = f"{chr(64 + col_idx)}{row_idx}"
+                            img.anchor = cell_address
+                            worksheet.add_image(img)
+                    except Exception as e:
+                        logger.error(f"添加手写图片失败: {str(e)}")
+                col_idx += 1
+            
+            # 添加标准图片列
+            if has_standard_image_column:
+                if hanzi.standard_image:
+                    try:
+                        img_path = os.path.join(settings.MEDIA_ROOT, hanzi.standard_image)
+                        if os.path.exists(img_path):
+                            img = openpyxl.drawing.image.Image(img_path)
+                            img.width = 100
+                            img.height = 100
+                            # 计算图片位置 - 使用新的图片列
+                            cell_address = f"{chr(64 + col_idx)}{row_idx}"
+                            img.anchor = cell_address
+                            worksheet.add_image(img)
+                    except Exception as e:
+                        logger.error(f"添加标准图片失败: {str(e)}")
+                col_idx += 1
+        
+        # 调整列宽和行高
+        original_cols_count = len(selected_fields)
+        for col_idx, column_name in enumerate(all_columns, 1):
+            column_letter = chr(64 + col_idx)
+            
+            # 如果是图片列（额外添加的列），设置较大的宽度
+            if col_idx > original_cols_count:
+                worksheet.column_dimensions[column_letter].width = 20
+            else:
+                # 其他列根据内容自动调整宽度
+                max_length = 0
+                for cell in worksheet[column_letter]:
+                    try:
+                        if len(str(cell.value)) > max_length:
+                            max_length = len(str(cell.value))
+                    except:
+                        pass
+                adjusted_width = max_length + 2
+                worksheet.column_dimensions[column_letter].width = adjusted_width
+        
+        # 所有图片列共用一种行高设置
+        if has_image_column or has_standard_image_column:
+            for row_idx in range(2, len(filtered_hanzi) + 2):
+                worksheet.row_dimensions[row_idx].height = 75
+        
+        # 保存Excel文件
+        workbook.save(excel_file_path)
         
         return True
     except Exception as e:
