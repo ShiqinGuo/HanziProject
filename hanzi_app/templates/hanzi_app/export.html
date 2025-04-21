@@ -243,24 +243,6 @@
             </div>
             <div class="card-body">
                 <p>请选择需要下载的文件：</p>
-                
-                <!-- 添加导出选项 -->
-                <div class="export-options mb-3 p-3 bg-light rounded">
-                    <h6><i class="fas fa-cog me-2"></i>导出选项</h6>
-                    <div class="form-check mt-2">
-                        <input class="form-check-input" type="checkbox" id="includeImagesOption" checked>
-                        <label class="form-check-label" for="includeImagesOption">
-                            在Excel中包含手写汉字图片
-                        </label>
-                        <div class="form-text text-muted">
-                            启用此选项将在Excel表格中添加图片列，显示对应的汉字手写图片
-                        </div>
-                    </div>
-                    <button class="btn btn-primary btn-sm mt-2" onclick="applyExportOptions()">
-                        <i class="fas fa-sync-alt me-1"></i>应用选项
-                    </button>
-                </div>
-                
                 <div id="file-list">
                     {% if file_list %}
                         {% for file in file_list %}
@@ -312,7 +294,7 @@
                             <i class="fas fa-file-excel fa-3x text-success"></i>
                         </div>
                         <h6 class="text-center">Excel数据</h6>
-                        <p class="small text-center">格式化的表格数据，可选择包含汉字图片</p>
+                        <p class="small text-center">格式化的表格数据</p>
                     </div>
                     <div class="col-md-4 mb-3">
                         <div class="text-center mb-2">
@@ -349,15 +331,10 @@
                 downloadBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>下载中...';
             }
             
-            // 获取当前图片选项状态
-            const includeImages = document.getElementById('includeImagesOption').checked;
-            
             // 创建下载链接
             const a = document.createElement('a');
             a.style.display = 'none';
-            // 将选项作为URL参数传递
-            const downloadUrl = "{% url 'hanzi_app:download_file' 'FILENAME' %}".replace('FILENAME', filename);
-            a.href = downloadUrl + (downloadUrl.includes('?') ? '&' : '?') + 'include_images=' + includeImages;
+            a.href = "{% url 'hanzi_app:download_file' 'FILENAME' %}".replace('FILENAME', filename);
             a.download = filename;
             
             // 添加到文档并触发点击
@@ -376,51 +353,6 @@
                     }, 1000);
                 }
             }, 100);
-        }
-        
-        // 应用导出选项
-        function applyExportOptions() {
-            const includeImages = document.getElementById('includeImagesOption').checked;
-            
-            // 向服务器发送请求，应用新的导出选项
-            fetch("{% url 'hanzi_app:apply_export_options' %}", {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': getCookie('csrftoken')
-                },
-                body: JSON.stringify({
-                    include_images: includeImages
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showNotification('导出选项已应用，请重新导出文件', 'success');
-                } else {
-                    showNotification(data.message || '应用选项失败', 'error');
-                }
-            })
-            .catch(error => {
-                console.error('应用选项出错:', error);
-                showNotification('应用选项失败，请重试', 'error');
-            });
-        }
-        
-        // 获取CSRF Cookie
-        function getCookie(name) {
-            let cookieValue = null;
-            if (document.cookie && document.cookie !== '') {
-                const cookies = document.cookie.split(';');
-                for (let i = 0; i < cookies.length; i++) {
-                    const cookie = cookies[i].trim();
-                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                        break;
-                    }
-                }
-            }
-            return cookieValue;
         }
         
         // 删除单个文件

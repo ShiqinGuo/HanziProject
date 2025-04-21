@@ -66,7 +66,7 @@ class Hanzi(models.Model):
             return cls.objects.none()
             
         # 将搜索模式转换为列表
-        pattern_list = [p.strip() for p in stroke_pattern.split(',')]
+        pattern_list = [p.strip() for p in stroke_pattern.split(' ')]
         
         # 构建查询
         query = cls.objects.all()

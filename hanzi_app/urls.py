@@ -21,7 +21,6 @@ urlpatterns = [
     path('stroke-search/', views.stroke_search, name='stroke_search'),
     path('cleanup_exports/', views.cleanup_exports, name='cleanup_exports'),
     path('delete_export_file/<str:filename>/', views.delete_export_file, name='delete_export_file'),
-    path('apply_export_options/', views.apply_export_options, name='apply_export_options'),
     path('api/logs/', views.capture_frontend_logs, name='capture_frontend_logs'),
     path('api/logs/delete/', views.delete_logs, name='delete_logs'),
     path('logs/', views.view_frontend_logs, name='view_frontend_logs'),

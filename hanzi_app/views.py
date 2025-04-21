@@ -33,11 +33,6 @@ from django.contrib import messages
 from rest_framework import serializers
 from urllib.parse import urlencode
 import re
-from openpyxl import Workbook
-from openpyxl.utils import get_column_letter
-from openpyxl.drawing.image import Image as XLImage
-from PIL import Image as PILImage
-import io
 
 # 在文件顶部添加日志配置
 logger = logging.getLogger(__name__)
@@ -1432,84 +1427,19 @@ def export_to_excel(filtered_hanzi, excel_file_path, selected_fields):
         # 创建DataFrame
         df = pd.DataFrame(data)
         
-        # 创建一个工作簿和工作表
-        wb = Workbook()
-        ws = wb.active
-        ws.title = '汉字数据'
-        
-        # 添加表头
-        headers = list(df.columns)
-        # 如果需要在Excel中显示图片，添加图片列
-        if 'character' in headers:
-            headers.append('手写图片')
-        
-        for col_num, header in enumerate(headers, 1):
-            cell = ws.cell(row=1, column=col_num)
-            cell.value = header
-        
-        # 添加数据行
-        for row_num, hanzi_data in enumerate(data, 2):
-            for col_num, field in enumerate(df.columns, 1):
-                cell = ws.cell(row=row_num, column=col_num)
-                cell.value = hanzi_data.get(field, '')
-        
-        # 如果需要添加图片列
-        if 'character' in headers:
-            char_col_idx = headers.index('character') + 1  # 汉字列的索引
-            img_col_idx = len(headers)  # 图片列的索引
+        # 导出到Excel
+        with pd.ExcelWriter(excel_file_path, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name='汉字数据')
             
-            for row_num, hanzi_data in enumerate(data, 2):
-                # 获取当前汉字对象
-                char = hanzi_data.get('character', '')
-                hanzi_obj = filtered_hanzi.filter(character=char).first()
-                
-                if hanzi_obj and hanzi_obj.image_path:
-                    image_path = os.path.join(settings.MEDIA_ROOT, hanzi_obj.image_path)
-                    if os.path.exists(image_path):
-                        try:
-                            # 使用PIL打开图片并调整大小
-                            pil_img = PILImage.open(image_path)
-                            # 调整图片大小以适合单元格
-                            max_width = 100
-                            max_height = 100
-                            pil_img.thumbnail((max_width, max_height))
-                            
-                            # 创建临时内存文件保存调整后的图片
-                            img_byte_arr = io.BytesIO()
-                            pil_img.save(img_byte_arr, format=pil_img.format or 'PNG')
-                            img_byte_arr.seek(0)
-                            
-                            # 创建Excel图片对象
-                            img = XLImage(img_byte_arr)
-                            
-                            # 计算图片位置
-                            cell = ws.cell(row=row_num, column=img_col_idx)
-                            cell_addr = f'{get_column_letter(img_col_idx)}{row_num}'
-                            
-                            # 添加图片到单元格
-                            ws.add_image(img, cell_addr)
-                            
-                            # 调整行高以适应图片
-                            ws.row_dimensions[row_num].height = 75
-                        except Exception as e:
-                            logger.error(f"添加图片到Excel失败: {str(e)}")
-                            cell = ws.cell(row=row_num, column=img_col_idx)
-                            cell.value = "图片加载失败"
-        
-        # 调整列宽
-        for col_num, field in enumerate(headers, 1):
-            column_width = 15  # 默认列宽
-            if field == '手写图片':
-                column_width = 20  # 图片列宽度更大
-            ws.column_dimensions[get_column_letter(col_num)].width = column_width
-        
-        # 保存工作簿
-        wb.save(excel_file_path)
+            # 调整列宽
+            worksheet = writer.sheets['汉字数据']
+            for idx, col in enumerate(df.columns):
+                column_width = max(df[col].astype(str).map(len).max(), len(col) + 2)
+                worksheet.column_dimensions[chr(65 + idx)].width = column_width
         
         return True
     except Exception as e:
         logger.error(f"Excel导出失败: {str(e)}")
-        traceback.print_exc()
         return False
 
 def download_file(request, filename):
@@ -1522,38 +1452,6 @@ def download_file(request, filename):
         return JsonResponse({'error': '文件不存在'}, status=404)
     
     try:
-        # 处理include_images选项
-        include_images = request.GET.get('include_images') == 'true'
-        
-        # 如果是Excel文件且需要包含图片，并且文件没有被之前处理过
-        if filename.endswith('.xlsx') and include_images and not request.session.get(f'image_processed_{filename}', False):
-            # 读取文件内容
-            with open(file_path, 'rb') as f:
-                file_content = f.read()
-            
-            # 从会话获取筛选参数
-            export_filters = request.session.get('export_filters', {})
-            
-            # 获取筛选后的汉字列表
-            filtered_hanzi = get_filtered_hanzi_list(
-                export_filters.get('search', ''),
-                export_filters.get('structure', ''),
-                export_filters.get('level', ''),
-                export_filters.get('variant', ''),
-                export_filters.get('stroke_count', ''),
-                export_filters.get('ids', ''),
-                export_filters.get('stroke_count_min', ''),
-                export_filters.get('stroke_count_max', '')
-            )
-            
-            # 重新生成包含图片的Excel文件
-            if not export_to_excel(filtered_hanzi, file_path, request.session.get('export_files', {}).get('selected_fields', [])):
-                logger.error(f"重新生成Excel文件失败: {filename}")
-            
-            # 标记文件已处理
-            request.session[f'image_processed_{filename}'] = True
-            request.session.modified = True
-        
         # 使用FileResponse自动处理文件关闭
         response = FileResponse(open(file_path, 'rb'), as_attachment=True, filename=filename)
         
@@ -1573,7 +1471,6 @@ def download_file(request, filename):
         return response
     except Exception as e:
         logger.error(f"文件下载失败: {str(e)}")
-        traceback.print_exc()
         return JsonResponse({'error': str(e)}, status=500)
 
 def cleanup_exports(request):
@@ -1693,31 +1590,3 @@ def stroke_search(request):
     }
     
     return render(request, 'hanzi_app/stroke_search.html', context)
-
-@csrf_exempt
-def apply_export_options(request):
-    """处理导出选项设置"""
-    if request.method != 'POST':
-        return JsonResponse({'success': False, 'message': '仅支持POST请求'}, status=405)
-    
-    try:
-        # 解析JSON数据
-        data = json.loads(request.body)
-        include_images = data.get('include_images', False)
-        
-        # 保存选项到会话
-        request.session['export_options'] = {
-            'include_images': include_images
-        }
-        request.session.modified = True
-        
-        return JsonResponse({
-            'success': True,
-            'message': '导出选项已保存'
-        })
-    except Exception as e:
-        logger.error(f"保存导出选项失败: {str(e)}")
-        return JsonResponse({
-            'success': False,
-            'message': f'保存导出选项失败: {str(e)}'
-        }, status=500)

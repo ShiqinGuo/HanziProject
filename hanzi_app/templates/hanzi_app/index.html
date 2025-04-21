@@ -121,7 +121,7 @@
         <form method="GET" class="row g-3" id="filterForm">
             <div class="col-md-4">
                 <div class="input-group">
-                    <input type="text" class="form-control" name="search" placeholder="输入汉字" value="{{ search_char }}">
+                    <input type="text" class="form-control" name="search" placeholder="输入汉字" value="{{ search }}">
                     <button class="btn btn-primary" type="submit"><i class="fas fa-search"></i> 搜索</button>
                 </div>
             </div>
@@ -270,12 +270,12 @@
             <ul class="pagination justify-content-center">
                 {% if page_obj.has_previous %}
                     <li class="page-item">
-                        <a class="page-link" href="?page=1{% if search %}&search={{ search }}{% endif %}{% if structure %}&structure={{ structure }}{% endif %}{% if level %}&level={{ level }}{% endif %}{% if variant %}&variant={{ variant }}{% endif %}{% if stroke_count %}&stroke_count={{ stroke_count }}{% endif %}" aria-label="First">
+                        <a class="page-link" href="?page=1{% if search %}&search={{ search }}{% endif %}{% if structure %}&structure={{ structure }}{% endif %}{% if level %}&level={{ level }}{% endif %}{% if variant %}&variant={{ variant }}{% endif %}{% if selected_stroke %}&stroke_count={{ selected_stroke }}{% endif %}" aria-label="First">
                             <span aria-hidden="true">&laquo;&laquo;</span>
                         </a>
                     </li>
                     <li class="page-item">
-                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if search %}&search={{ search }}{% endif %}{% if structure %}&structure={{ structure }}{% endif %}{% if level %}&level={{ level }}{% endif %}{% if variant %}&variant={{ variant }}{% endif %}{% if stroke_count %}&stroke_count={{ stroke_count }}{% endif %}" aria-label="Previous">
+                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if search %}&search={{ search }}{% endif %}{% if structure %}&structure={{ structure }}{% endif %}{% if level %}&level={{ level }}{% endif %}{% if variant %}&variant={{ variant }}{% endif %}{% if selected_stroke %}&stroke_count={{ selected_stroke }}{% endif %}" aria-label="Previous">
                             <span aria-hidden="true">&laquo;</span>
                         </a>
                     </li>
@@ -283,20 +283,20 @@
         
                 {% for num in page_obj.paginator.page_range %}
                     {% if page_obj.number == num %}
-                        <li class="page-item active"><a class="page-link" href="?page={{ num }}{% if search %}&search={{ search }}{% endif %}{% if structure %}&structure={{ structure }}{% endif %}{% if level %}&level={{ level }}{% endif %}{% if variant %}&variant={{ variant }}{% endif %}{% if stroke_count %}&stroke_count={{ stroke_count }}{% endif %}">{{ num }}</a></li>
+                        <li class="page-item active"><a class="page-link" href="?page={{ num }}{% if search %}&search={{ search }}{% endif %}{% if structure %}&structure={{ structure }}{% endif %}{% if level %}&level={{ level }}{% endif %}{% if variant %}&variant={{ variant }}{% endif %}{% if selected_stroke %}&stroke_count={{ selected_stroke }}{% endif %}">{{ num }}</a></li>
                     {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
-                        <li class="page-item"><a class="page-link" href="?page={{ num }}{% if search %}&search={{ search }}{% endif %}{% if structure %}&structure={{ structure }}{% endif %}{% if level %}&level={{ level }}{% endif %}{% if variant %}&variant={{ variant }}{% endif %}{% if stroke_count %}&stroke_count={{ stroke_count }}{% endif %}">{{ num }}</a></li>
+                        <li class="page-item"><a class="page-link" href="?page={{ num }}{% if search %}&search={{ search }}{% endif %}{% if structure %}&structure={{ structure }}{% endif %}{% if level %}&level={{ level }}{% endif %}{% if variant %}&variant={{ variant }}{% endif %}{% if selected_stroke %}&stroke_count={{ selected_stroke }}{% endif %}">{{ num }}</a></li>
                     {% endif %}
                 {% endfor %}
         
                 {% if page_obj.has_next %}
                     <li class="page-item">
-                        <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if search %}&search={{ search }}{% endif %}{% if structure %}&structure={{ structure }}{% endif %}{% if level %}&level={{ level }}{% endif %}{% if variant %}&variant={{ variant }}{% endif %}{% if stroke_count %}&stroke_count={{ stroke_count }}{% endif %}" aria-label="Next">
+                        <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if search %}&search={{ search }}{% endif %}{% if structure %}&structure={{ structure }}{% endif %}{% if level %}&level={{ level }}{% endif %}{% if variant %}&variant={{ variant }}{% endif %}{% if selected_stroke %}&stroke_count={{ selected_stroke }}{% endif %}" aria-label="Next">
                             <span aria-hidden="true">&raquo;</span>
                         </a>
                     </li>
                     <li class="page-item">
-                        <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if search %}&search={{ search }}{% endif %}{% if structure %}&structure={{ structure }}{% endif %}{% if level %}&level={{ level }}{% endif %}{% if variant %}&variant={{ variant }}{% endif %}{% if stroke_count %}&stroke_count={{ stroke_count }}{% endif %}" aria-label="Last">
+                        <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if search %}&search={{ search }}{% endif %}{% if structure %}&structure={{ structure }}{% endif %}{% if level %}&level={{ level }}{% endif %}{% if variant %}&variant={{ variant }}{% endif %}{% if selected_stroke %}&stroke_count={{ selected_stroke }}{% endif %}" aria-label="Last">
                             <span aria-hidden="true">&raquo;&raquo;</span>
                         </a>
                     </li>
@@ -305,7 +305,7 @@
                 <!-- 添加页码跳转功能 -->
                 <li class="page-item ms-2">
                     <div class="input-group" >
-                        <select id="pageJumpSelect" class="form-select form-select-sm">
+                        <select id="pageJumpSelect" class="form-select form-select-sm" onchange="return jumpToPage()">
                             <option value="">跳转到...</option>
                             {% for num in page_obj.paginator.page_range %}
                                 <option value="{{ num }}" {% if page_obj.number == num %}selected{% endif %}>
@@ -411,12 +411,48 @@
         
         let page = parseInt(pageSelect.value);
         
-        // 构建URL参数，保留所有现有参数
-        const params = new URLSearchParams(window.location.search);
+        // 直接获取当前的URL参数
+        const currentParams = new URLSearchParams(window.location.search);
+        
+        // 创建新的URL参数对象
+        const params = new URLSearchParams();
+        
+        // 设置页码
         params.set('page', page);
+        
+        // 从原始URL中获取所有参数并保留（除了page）
+        for (const [key, value] of currentParams.entries()) {
+            if (key !== 'page') {
+                params.set(key, value);
+            }
+        }
+        
+        // 特别处理笔画数参数
+        // 从下拉框中获取当前选择的笔画数
+        const strokeCountSelect = document.getElementById('stroke_count');
+        const strokeValue = strokeCountSelect ? strokeCountSelect.value : null;
+        
+        // 如果有选择的笔画数且不是"所有"，则设置参数
+        if (strokeValue && strokeValue !== '所有') {
+            params.set('stroke_count', strokeValue);
+        }
+        
+        // 如果某些参数丢失，从模板变量中获取并添加
+        const search = "{{ search }}";
+        const structure = "{{ structure }}";
+        const level = "{{ level }}";
+        const variant = "{{ variant }}";
+        
+        if (search && !params.has('search')) params.set('search', search);
+        if (structure && !params.has('structure')) params.set('structure', structure);
+        if (level && !params.has('level')) params.set('level', level);
+        if (variant && !params.has('variant')) params.set('variant', variant);
         
         // 跳转
         window.location.href = `${window.location.pathname}?${params.toString()}`;
+        
+        // 阻止默认事件
+        return false;
     }
 
     // 导出功能
@@ -495,16 +531,6 @@
                 element.style.animationDelay = delay + 'ms';
             }
         });
-        
-        // 添加页码选择变更自动跳转
-        const pageSelect = document.getElementById('pageJumpSelect');
-        if (pageSelect) {
-            pageSelect.addEventListener('change', function() {
-                if (this.value) {
-                    jumpToPage();
-                }
-            });
-        }
         
         // 初始化选中项目的复选框状态
         initCheckboxes();
