@@ -154,6 +154,23 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Login URL
 LOGIN_URL = '/admin/login/'
 
+# Celery配置
+CELERY_BROKER_URL = 'redis://localhost:6379/0'  # 使用Redis作为消息代理
+CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'  # 使用Redis存储任务结果
+CELERY_ACCEPT_CONTENT = ['json']  # 指定接受的内容类型
+CELERY_TASK_SERIALIZER = 'json'  # 任务序列化和反序列化使用JSON
+CELERY_RESULT_SERIALIZER = 'json'  # 结果序列化为JSON
+CELERY_TIMEZONE = TIME_ZONE  # 使用与Django相同的时区
+CELERY_TASK_TRACK_STARTED = True  # 跟踪已启动的任务
+CELERY_TASK_TIME_LIMIT = 30 * 60  # 设置任务的硬时间限制为30分钟
+CELERY_TASK_SOFT_TIME_LIMIT = 25 * 60  # 设置软时间限制为25分钟
+
+# 如果需要使用其他消息代理，例如RabbitMQ，请使用以下配置
+# CELERY_BROKER_URL = 'amqp://guest:guest@localhost:5672//'
+
+# 导入任务超时设置
+IMPORT_TASK_TIMEOUT = 3600  # 导入任务的超时时间（秒）
+
 # Logging configuration
 LOGGING = {
     'version': 1,
@@ -188,6 +205,11 @@ LOGGING = {
             'propagate': True,
         },
         'hanzi_app': {
+            'handlers': ['console', 'file'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+        'celery': {
             'handlers': ['console', 'file'],
             'level': 'INFO',
             'propagate': True,

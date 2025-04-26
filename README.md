@@ -1,6 +1,6 @@
-# 汉字管理系统 🀄
+# 汉字分析工具
 
-汉字管理系统提供汉字的增删改查、笔画搜索、图像比较等功能，支持教师管理汉字资源的各种需求。
+这是一个用于处理和分析汉字图像数据的工具集，可以进行识别、分类和数据导入导出。
 
 ## 📋 目录
 
@@ -81,48 +81,16 @@
 
 ## 📁 项目结构
 
-    ```
-    hanzi_project/
-    │
-    ├── hanzi_app/                     # 主应用目录
-    │   ├── migrations/                # 数据库迁移文件
-    │   ├── static/                    # 应用静态文件
-    │   ├── templates/                 # HTML模板
-    │   ├── templatetags/              # 自定义模板标签
-    │   ├── admin.py                   # 管理界面配置
-    │   ├── forms.py                   # 表单定义
-    │   ├── generate.py                # 生成标准汉字图像
-    │   ├── models.py                  # 数据模型定义
-    │   ├── performance_tests.py       # 性能测试脚本
-    │   ├── recognition.py             # 汉字识别模块
-    │   ├── urls.py                    # URL路由配置
-    │   └── views.py                   # 视图函数
-    │
-    ├── hanzi_project/                 # 项目核心配置
-    │   ├── asgi.py                    # ASGI配置
-    │   ├── settings.py                # 项目设置
-    │   ├── urls.py                    # 项目URL配置
-    │   └── wsgi.py                    # WSGI配置
-    │
-    ├── data/                          # 数据文件目录
-    │   ├── ch_match/                  # 汉字匹配数据
-    │   ├── upload/                    # 上传的数据
-    │   └── 提交数据集含答案/           # 测试数据集
-    │
-    ├── media/                         # 媒体文件目录
-    │   └── standard_images/           # 标准汉字图像
-    │
-    ├── staticfiles/                   # 收集的静态文件
-    │
-    ├── templates/                     # 全局模板
-    │
-    ├── Strokes.txt                    # 汉字笔画数据
-    ├── compare.py                     # 图像比较工具
-    ├── manage.py                      # Django管理脚本
-    ├── requirements.txt               # 项目依赖
-    ├── .gitignore                     # Git忽略配置
-    └── README.md                      # 项目说明
-    ```
+```
+hanzi_project/
+├── hanzi_app/
+│   ├── data_processor.py  # 数据处理功能
+│   ├── data_importer.py   # 数据导入功能
+│   └── recognition.py     # 汉字识别功能
+├── hanzi_analyzer.py      # 分析汉字数据的主脚本
+├── hanzi_importer.py      # 导入汉字数据的示例脚本
+└── README.md              # 项目说明文档
+```
 
 ## 🚀 安装部署
 
@@ -199,97 +167,53 @@
 
 ## 📚 功能详解
 
-### 1. 汉字管理
+### 1. 数据处理功能
 
-#### 添加汉字 (add.html)
+通过 `hanzi_analyzer.py` 脚本可以处理汉字图像数据，识别汉字并生成Excel报告：
 
-- **路径**: `/add/`
-- **功能**: 添加新汉字记录至系统
-- **实现**: 通过表单收集汉字信息，包括字符、拼音、笔画数、部首等
-- **处理流程**:
-  1. 用户填写汉字信息表单
-  2. 系统验证输入数据有效性
-  3. 保存汉字信息到数据库
-  4. 自动生成汉字标准图像
+```bash
+python hanzi_analyzer.py
+```
 
-#### 查看汉字详情 (detail.html)
+### 2. 数据导入功能
 
-- **路径**: `/detail/<hanzi_id>/`
-- **功能**: 查看单个汉字的详细信息
-- **实现**: 展示汉字的所有属性，包括标准图像、笔画顺序、拼音等
-- **特性**:
-  - 编辑与删除选项
+通过 `hanzi_importer.py` 脚本可以导入ZIP压缩的图像和JSON数据：
 
-#### 编辑汉字 (edit.html)
+```bash
+python hanzi_importer.py
+```
 
-- **路径**: `/edit/<hanzi_id>/`
-- **功能**: 修改已有汉字信息
-- **实现**: 预填充表单，允许用户修改字段，更新数据库
-- **安全措施**: CSRF保护，表单验证
+也可以通过命令行参数进行更灵活的配置：
 
-### 2. 汉字搜索 (index.html)
+```bash
+python -m hanzi_app.data_importer --image_zip path/to/images.zip --json_data path/to/data.json --level_key levels --comment_key comments --output results.xlsx --format excel --test
+```
 
-- **路径**: `/`
-- **功能**: 系统首页，提供多条件汉字搜索
-- **搜索条件**:
-  - 汉字字符
-  - 拼音
-  - 笔画数范围
-  - 部首
-  - 结构类型
-- **实现**:
-  - 基于模型Manager自定义查询方法
-  - 分页显示结果
-  - AJAX动态加载
+#### 参数说明：
 
-### 3. 笔画搜索 (stroke_search.html)
+- `--image_zip`: 图片ZIP文件路径（必需）
+- `--json_data`: JSON数据文件路径（必需）
+- `--level_key`: JSON中表示等级的键
+- `--comment_key`: JSON中表示评语的键
+- `--output`: 输出文件路径（必需）
+- `--format`: 输出格式，可选值为excel或json，默认为excel
+- `--test`: 测试模式标志，添加此参数将只处理前5张图片
 
-- **路径**: `/stroke_search/`
-- **功能**: 根据笔画特征搜索汉字
-- **实现**:
-  - 基于Strokes.txt文件的笔画数据
-  - 交互式笔画输入界面
-  - 实时匹配
-- **特性**:
-  - 可视化笔画输入检索
-  - 笔画类型过滤
+#### 键映射说明：
 
-### 4. 数据导入 (import.html)
+可以通过`key_mappings`配置JSON数据中键与输出结果字段的映射关系，例如：
 
-- **路径**: `/import/`
-- **功能**: 批量导入汉字数据
-- **支持格式**: JSON
-- **实现**:
-  - 文件上传处理
-  - 数据解析与验证
-  - 批量保存到数据库
-- **安全措施**:
-  - 文件类型验证
-  - 大小限制
-  - 数据完整性检查
+```python
+key_mappings = {
+    "comment": "comments",  # JSON中的comments键映射到结果中的comment
+    "level": "levels"       # JSON中的levels键映射到结果中的level
+}
+```
 
-### 5. 图像比较功能 (compare.py)
+#### 输出格式：
 
-- **功能**: 比较用户手写汉字与标准汉字的相似度
-- **实现**:
-  - 使用PyTorch深度学习模型提取特征
-  - 计算特征向量余弦相似度
-  - 返回相似度评分
-- **应用场景**:
-  - 汉字书写评估
-  - 字形相似度分析
-  - 汉字识别辅助
-
-### 6. 汉字识别 (recognition.py)
-
-- **功能**: OCR识别图片中的汉字
-- **实现**:
-  - 使用EasyOCR引擎
-  - 图像预处理增强识别率
-  - 结果验证与后处理
-- **性能优化**:
-  - 批量处理
-  - 多线程异步处理
+- Excel格式：生成包含汉字识别结果、等级、评语等信息的表格
+- JSON格式：生成包含相同信息的JSON文件
 
 ## 💾 数据模型
 
@@ -447,4 +371,4 @@
 
 ---
 
-🔄 最后更新: 2025年3月24日
+�� 最后更新: 2025年3月24日

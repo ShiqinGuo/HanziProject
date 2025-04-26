@@ -281,6 +281,24 @@
                 </div>
             </div>
         </div>
+
+        <!-- 在已有的卡片下方添加自定义导入按钮 -->
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="m-0"><i class="fas fa-file-import me-2"></i>自定义数据导入</h5>
+            </div>
+            <div class="card-body">
+                <p><i class="fas fa-info-circle me-2"></i>使用此功能可以从ZIP图片和JSON数据文件生成自定义Excel/JSON数据。</p>
+                <ul class="mb-3">
+                    <li>支持自定义JSON键映射（levels, comments等）</li>
+                    <li>支持多种输出格式（Excel或JSON）</li>
+                    <li>批量处理图片并生成标准格式数据</li>
+                </ul>
+                <a href="{% url 'hanzi_app:import_data' %}" class="btn btn-light btn-lg">
+                    <i class="fas fa-external-link-alt me-1"></i>进入自定义导入工具
+                </a>
+            </div>
+        </div>
     </div>
 
     <footer class="bg-dark text-white mt-5 py-4">

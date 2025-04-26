@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    {% load static %}
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>汉字数据导入工具 - 汉字管理系统</title>
+    <link rel="shortcut icon" type="image/x-icon" href="{% static 'images/favicon.ico' %}">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #3f51b5;
+            --secondary-color: #ff4081;
+            --light-bg: #f5f7fa;
+            --dark-text: #333;
+            --card-shadow: 0 8px 16px rgba(0,0,0,0.1);
+        }
+        
+        body { 
+            background-color: var(--light-bg);
+            font-family: 'Noto Sans SC', sans-serif;
+        }
+        
+        .navbar {
+            background-color: var(--primary-color);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .navbar-brand {
+            font-weight: 700;
+            color: white !important;
+        }
+        
+        .import-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .card {
+            margin-bottom: 20px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            border: none;
+            border-radius: 12px;
+        }
+        
+        .card-header {
+            background-color: white;
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+            padding: 1.5rem;
+            border-radius: 12px 12px 0 0 !important;
+        }
+        
+        .section-title {
+            border-left: 4px solid #007bff;
+            padding-left: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .field-row {
+            margin-bottom: 15px;
+        }
+        
+        .custom-file-label::after {
+            content: "浏览";
+        }
+        
+        .btn-primary {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+        
+        .btn-primary:hover {
+            background-color: #303f9f;
+            border-color: #303f9f;
+        }
+        
+        .alert {
+            margin-top: 20px;
+        }
+        
+        .key-mapping-container {
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        
+        .file-list-item {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .file-list-item:last-child {
+            border-bottom: none;
+        }
+        
+        .progress {
+            height: 20px;
+            margin: 10px 0;
+        }
+        
+        .task-status {
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+        
+        .status-pending {
+            background-color: #ffeeba;
+            color: #856404;
+        }
+        
+        .status-processing {
+            background-color: #b8daff;
+            color: #004085;
+        }
+        
+        .status-completed {
+            background-color: #c3e6cb;
+            color: #155724;
+        }
+        
+        .status-failed {
+            background-color: #f5c6cb;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar navbar-expand-lg navbar-dark mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="{% url 'hanzi_app:index' %}">
+                <i class="fas fa-book-open me-2"></i>汉字管理系统
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'hanzi_app:index' %}">
+                            <i class="fas fa-home me-1"></i>首页
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'hanzi_app:import' %}">
+                            <i class="fas fa-arrow-left me-1"></i>返回导入
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="import-container">
+        <h2 class="section-title">汉字数据导入工具</h2>
+        
+        {% if messages %}
+        <div class="messages">
+            {% for message in messages %}
+            <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        
+        <!-- 已完成文件列表 -->
+        {% if completed_files %}
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5><i class="fas fa-check-circle me-2"></i>已完成的导入任务</h5>
+                <button id="refreshBtn" class="btn btn-outline-primary btn-sm">
+                    <i class="fas fa-sync-alt me-1"></i>刷新
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="list-group">
+                    {% for file in completed_files %}
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <i class="fas fa-file-excel me-2 text-success"></i>
+                            <span>{{ file.filename }}</span>
+                            <small class="text-muted ms-2">{{ file.timestamp }}</small>
+                            <span class="badge bg-success ms-2">已完成</span>
+                        </div>
+                        <div>
+                            <a href="{{ file.url }}" class="btn btn-outline-success btn-sm me-2" download>
+                                <i class="fas fa-download me-1"></i>下载
+                            </a>
+                            <button class="btn btn-outline-danger btn-sm delete-file" data-file="{{ file.filename }}">
+                                <i class="fas fa-trash me-1"></i>删除
+                            </button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- 进行中的导入任务 -->
+        {% if active_tasks %}
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-tasks me-2"></i>进行中的导入任务</h5>
+            </div>
+            <div class="card-body">
+                <div id="activeTasks">
+                    {% for task in active_tasks %}
+                    <div class="task-item mb-3" data-task-id="{{ task.id }}">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h6>{{ task.name }}</h6>
+                            <span class="task-status status-{{ task.status }}">{{ task.status_text }}</span>
+                        </div>
+                        <div class="progress">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                 role="progressbar" style="width: {{ task.progress }}%">
+                                {{ task.progress }}%
+                            </div>
+                        </div>
+                        <small class="text-muted">{{ task.message }}</small>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-upload me-2"></i>上传文件</h5>
+            </div>
+            <div class="card-body">
+                <form method="post" enctype="multipart/form-data" id="importForm">
+                    {% csrf_token %}
+                    
+                    <div class="field-row">
+                        <label for="image_zip" class="form-label">图片ZIP文件</label>
+                        <input type="file" class="form-control" id="image_zip" name="image_zip" accept=".zip" required>
+                        <div class="form-text">请上传包含所有汉字图片的ZIP压缩包</div>
+                    </div>
+                    
+                    <div class="field-row">
+                        <label for="json_data" class="form-label">JSON数据文件</label>
+                        <input type="file" class="form-control" id="json_data" name="json_data" accept=".json" required>
+                        <div class="form-text">请上传包含汉字等级和评语数据的JSON文件</div>
+                    </div>
+                    
+                    <div class="key-mapping-container">
+                        <h6>JSON键映射</h6>
+                        <p class="text-muted small">指定JSON文件中的哪些键对应汉字的等级和评语</p>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="level_key" class="form-label">等级键名</label>
+                                    <input type="text" class="form-control" id="level_key" name="level_key" value="levels" placeholder="例如: levels">
+                                    <div class="form-text">JSON中表示汉字等级的键</div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="comment_key" class="form-label">评语键名</label>
+                                    <input type="text" class="form-control" id="comment_key" name="comment_key" value="comments" placeholder="例如: comments">
+                                    <div class="form-text">JSON中表示汉字评语的键</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="structure_key" class="form-label">结构键名</label>
+                                    <input type="text" class="form-control" id="structure_key" name="structure_key" value="structure" placeholder="例如: structure">
+                                    <div class="form-text">JSON中表示汉字结构的键（选填）</div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="variant_key" class="form-label">简繁体键名</label>
+                                    <input type="text" class="form-control" id="variant_key" name="variant_key" value="variant" placeholder="例如: variant">
+                                    <div class="form-text">JSON中表示简繁体的键（选填）</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="field-row">
+                        <label for="output_format" class="form-label">输出格式</label>
+                        <select class="form-control" id="output_format" name="output_format">
+                            <option value="excel" selected>Excel格式</option>
+                            <option value="json">JSON格式</option>
+                        </select>
+                        <div class="form-text">选择处理结果的输出格式</div>
+                    </div>
+                    
+                    <div class="field-row">
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="test_mode" name="test_mode">
+                            <label class="form-check-label" for="test_mode">测试模式</label>
+                        </div>
+                        <div class="form-text">启用测试模式将只处理前5张图片</div>
+                    </div>
+                    
+                    <div class="field-row">
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="enhanced_recognition" name="enhanced_recognition" checked>
+                            <label class="form-check-label" for="enhanced_recognition">增强识别模式</label>
+                        </div>
+                        <div class="form-text">启用图像预处理和多模型识别，提高准确率（处理速度会较慢）</div>
+                    </div>
+                    
+                    <div class="text-center mt-4">
+                        <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">
+                            <i class="fas fa-upload me-2"></i>开始导入
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <!-- 导入进度 -->
+        <div class="card" id="progressCard" style="display:none;">
+            <div class="card-header">
+                <h5><i class="fas fa-spinner me-2"></i>导入进度</h5>
+            </div>
+            <div class="card-body">
+                <div class="progress" style="height: 25px;">
+                    <div id="importProgress" class="progress-bar progress-bar-striped progress-bar-animated" 
+                         role="progressbar" style="width: 0%;">0%</div>
+                </div>
+                <div id="statusMessage" class="mt-3 text-center">准备导入...</div>
+                <div class="mt-3 text-center">
+                    <small class="text-muted">导入任务将在后台继续进行，您可以关闭此页面或浏览其他内容</small>
+                </div>
+            </div>
+        </div>
+        
+        {% if result_file %}
+        <div class="card">
+            <div class="card-header">
+                <h5>处理结果</h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-success">
+                    <h5 class="alert-heading">处理完成！</h5>
+                    <p>共处理 {{ processed_count }} 个文件，成功识别 {{ recognized_count }} 个汉字</p>
+                    <hr>
+                    <p>结果已保存到: {{ result_file }}</p>
+                    <div class="mt-3">
+                        <a href="{{ result_file_url }}" class="btn btn-success" download>
+                            <i class="fas fa-download"></i> 下载结果文件
+                        </a>
+                        {% if fail_log %}
+                        <a href="{{ fail_log_url }}" class="btn btn-warning ms-2" download>
+                            <i class="fas fa-exclamation-triangle"></i> 下载失败日志
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <footer class="bg-dark text-white mt-5 py-4">
+        <div class="container text-center">
+            <p class="mb-0">© 汉字管理平台 | 作者:ShiqinGuo</p>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            // 表单提交
+            $('#importForm').on('submit', function(e) {
+                e.preventDefault();
+                
+                // 显示进度条
+                $('#progressCard').show();
+                $('#submitBtn').prop('disabled', true).html('<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> 处理中...');
+                
+                // 收集表单数据
+                let formData = new FormData(this);
+                
+                // AJAX提交表单
+                $.ajax({
+                    url: '{% url "hanzi_app:import_data" %}',
+                    type: 'POST',
+                    data: formData,
+                    processData: false,
+                    contentType: false,
+                    success: function(response) {
+                        console.log("收到上传响应:", response);
+                        if (response.task_id) {
+                            // 开始轮询任务状态
+                            pollTaskStatus(response.task_id);
+                        } else {
+                            // 直接显示结果（同步处理完成）
+                            updateProgress(100, '处理完成');
+                            setTimeout(function() {
+                                window.location.reload();
+                            }, 1500);
+                        }
+                    },
+                    error: function(xhr) {
+                        console.error("上传失败:", xhr.responseText);
+                        $('#statusMessage').html('导入失败: ' + xhr.responseText);
+                        $('#importProgress').removeClass('bg-primary').addClass('bg-danger');
+                        $('#submitBtn').prop('disabled', false).html('重试导入');
+                    }
+                });
+            });
+            
+            // 轮询任务状态
+            function pollTaskStatus(taskId) {
+                console.log("轮询任务状态:", taskId);
+                $.ajax({
+                    url: '{% url "hanzi_app:check_import_task" %}',
+                    type: 'GET',
+                    data: {task_id: taskId},
+                    success: function(response) {
+                        console.log("任务状态更新:", response);
+                        
+                        // 更新进度信息
+                        let progressValue = 0;
+                        if (response.state === 'PENDING') {
+                            progressValue = 10;
+                            $('#statusMessage').html('任务排队中...');
+                        } else if (response.state === 'STARTED' || response.state === 'PROGRESS') {
+                            progressValue = 50;
+                            $('#statusMessage').html(response.message || '任务处理中...');
+                        } else if (response.status === 'completed' || response.status === 'success') {
+                            progressValue = 100;
+                            $('#statusMessage').html('任务完成');
+                        } else if (response.status === 'failed' || response.status === 'error') {
+                            progressValue = 100;
+                            $('#statusMessage').html('任务失败: ' + response.message);
+                            $('#importProgress').removeClass('bg-primary').addClass('bg-danger');
+                        }
+                        
+                        // 更新进度条
+                        $('#importProgress').css('width', progressValue + '%').html(progressValue + '%');
+                        
+                        // 如果任务未完成，继续轮询
+                        if (response.status !== 'completed' && response.status !== 'success' && 
+                            response.status !== 'failed' && response.status !== 'error') {
+                            setTimeout(function() {
+                                pollTaskStatus(taskId);
+                            }, 2000);
+                        } else if (response.status === 'completed' || response.status === 'success') {
+                            // 任务完成，显示结果
+                            if (response.file_url) {
+                                // 在当前页面添加结果链接而不是刷新
+                                let resultHtml = `
+                                <div class="alert alert-success mt-3">
+                                    <h5>处理完成！</h5>
+                                    <p>共处理 ${response.processed_count || 0} 个文件，识别成功 ${response.recognized_count || 0} 个</p>
+                                    <div class="mt-2">
+                                        <a href="${response.file_url}" class="btn btn-success" download>
+                                            <i class="fas fa-download"></i> 下载结果文件
+                                        </a>
+                                    </div>
+                                </div>`;
+                                $('#progressCard .card-body').append(resultHtml);
+                                $('#submitBtn').prop('disabled', false).html('开始新导入');
+                            } else {
+                                // 如果没有返回文件，刷新页面
+                                setTimeout(function() {
+                                    window.location.reload();
+                                }, 1500);
+                            }
+                        } else {
+                            // 任务失败
+                            $('#submitBtn').prop('disabled', false).html('重试导入');
+                        }
+                    },
+                    error: function(xhr) {
+                        console.error("轮询失败:", xhr.responseText);
+                        // 轮询出错，继续尝试
+                        setTimeout(function() {
+                            pollTaskStatus(taskId);
+                        }, 3000);
+                    }
+                });
+            }
+            
+            // 更新进度
+            function updateProgress(progress, message) {
+                $('#importProgress').css('width', progress + '%').html(progress + '%');
+                if (message) {
+                    $('#statusMessage').html(message);
+                }
+            }
+            
+            // 删除文件
+            $('.delete-file').on('click', function() {
+                if (confirm('确定要删除这个文件吗？')) {
+                    let filename = $(this).data('file');
+                    
+                    $.ajax({
+                        url: '{% url "hanzi_app:delete_import_file" %}',
+                        type: 'POST',
+                        data: {
+                            filename: filename,
+                            csrfmiddlewaretoken: '{{ csrf_token }}'
+                        },
+                        success: function() {
+                            window.location.reload();
+                        }
+                    });
+                }
+            });
+            
+            // 刷新按钮
+            $('#refreshBtn').on('click', function() {
+                window.location.reload();
+            });
+        });
+    </script>
+</body>
+</html> 

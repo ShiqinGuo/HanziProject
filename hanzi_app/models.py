@@ -30,6 +30,7 @@ class Hanzi(models.Model):
         ('A', 'A'),
         ('B', 'B'),
         ('C', 'C'),
+        ('D', 'D'),
     ]
 
     id = models.CharField('编号', primary_key=True, max_length=5)

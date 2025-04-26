@@ -34,6 +34,11 @@ from rest_framework import serializers
 from urllib.parse import urlencode
 import re
 import openpyxl
+import uuid
+from django.core.files.storage import FileSystemStorage
+from hanzi_app.data_importer import import_hanzi_data, clean_import_results_folder, extract_zip_to_temp
+from concurrent.futures import ThreadPoolExecutor
+import glob
 
 # 在文件顶部添加日志配置
 logger = logging.getLogger(__name__)
@@ -809,15 +814,7 @@ def process_hanzi_data(data_item, image_dir=None, zip_file=None, is_json=True):
             # 没有提供ID，生成新ID
             hanzi_id = generate_new_id(structure)
             logger.info(f"未提供ID，生成新ID: {hanzi_id}")
-            
-            # 检查是否已存在相同汉字的记录（不考虑ID）
-            existing_by_char = Hanzi.objects.filter(character=char).first()
-            if existing_by_char:
-                # 使用现有记录进行更新
-                existing_hanzi = existing_by_char
-                is_update = True
-                hanzi_id = existing_by_char.id
-                logger.info(f"找到字符 '{char}' 的现有记录 {hanzi_id}，将进行更新")
+          
         
         # 处理图片文件
         image_path = ""
@@ -1715,3 +1712,489 @@ def stroke_search(request):
     }
     
     return render(request, 'hanzi_app/stroke_search.html', context)
+
+def import_view(request):
+    """
+    原有的导入页面入口
+    """
+    return render(request, 'hanzi_app/import.html')
+
+# 创建线程池
+_executor = ThreadPoolExecutor(max_workers=2)
+_task_results = {}
+
+def process_import_task(image_zip_path, json_data_path, output_dir, json_mappings, test_mode=False, enhanced_recognition=False):
+    """
+    处理导入数据的任务（使用线程池代替Celery）
+    """
+    from hanzi_app.data_importer import import_hanzi_data, extract_zip_to_temp
+    import shutil
+    import os
+    
+    # 创建任务状态记录
+    task_id = str(uuid.uuid4())
+    task_status = {
+        'task_id': task_id,
+        'status': 'processing',
+        'progress': 0,
+        'message': '开始处理导入任务...',
+        'name': '汉字数据导入'
+    }
+    
+    # 创建状态文件
+    status_file = os.path.join(output_dir, f"task_{task_id}_status.json")
+    with open(status_file, 'w', encoding='utf-8') as f:
+        json.dump(task_status, f)
+    
+    temp_extract_dir = None
+    try:
+        # 更新进度：开始解压
+        update_status(status_file, 10, '正在解压ZIP文件...')
+        
+        # 解压ZIP文件
+        try:
+            temp_extract_dir, extracted_img_folder = extract_zip_to_temp(image_zip_path)
+            logger.info(f"解压完成：{len(os.listdir(extracted_img_folder))} 个文件已提取到 {extracted_img_folder}")
+        except Exception as e:
+            logger.error(f"解压文件失败: {str(e)}")
+            update_status(status_file, 10, f'解压失败: {str(e)}', 'failed')
+            raise
+        
+        # 更新进度：开始识别
+        update_status(status_file, 30, '正在识别汉字并处理数据...')
+        
+        # 执行导入处理
+        try:
+            result_path = import_hanzi_data(
+                extracted_img_folder,
+                json_data_path,
+                output_dir,
+                json_mappings,
+                test_mode=test_mode,
+                enhanced_recognition=enhanced_recognition,
+                status_callback=lambda p, m: update_status(status_file, p, m)
+            )
+            logger.info(f"导入处理完成，结果保存到: {result_path}")
+        except Exception as e:
+            logger.error(f"导入处理失败: {str(e)}")
+            update_status(status_file, 50, f'处理数据失败: {str(e)}', 'failed')
+            raise
+        
+        # 处理完成
+        update_status(status_file, 100, '导入处理完成', 'completed', result_file=result_path)
+        
+        return {
+            'status': 'completed',
+            'result_file': result_path
+        }
+    except Exception as e:
+        # 处理失败
+        error_msg = str(e)
+        update_status(status_file, 0, f'处理失败: {error_msg}', 'failed')
+        
+        return {
+            'status': 'failed',
+            'error': error_msg
+        }
+    finally:
+        # 清理临时目录
+        if temp_extract_dir and os.path.exists(temp_extract_dir):
+            try:
+                shutil.rmtree(temp_extract_dir, ignore_errors=True)
+                logger.info(f"已清理临时目录: {temp_extract_dir}")
+            except Exception as e:
+                logger.error(f"清理临时目录失败: {str(e)}")
+        
+        # 清理临时上传文件
+        try:
+            if os.path.exists(image_zip_path):
+                os.remove(image_zip_path)
+            if os.path.exists(json_data_path):
+                os.remove(json_data_path)
+            logger.info("已清理临时上传文件")
+        except Exception as e:
+            logger.error(f"清理临时文件失败: {str(e)}")
+
+def update_task_status(status_file, progress, message, status=None, result_file=None):
+    """更新任务状态文件"""
+    try:
+        with open(status_file, 'r', encoding='utf-8') as f:
+            task_status = json.load(f)
+        
+        # 更新字段
+        task_status['progress'] = progress
+        task_status['message'] = message
+        
+        if status:
+            task_status['status'] = status
+        
+        if result_file:
+            task_status['result_file'] = result_file
+        
+        with open(status_file, 'w', encoding='utf-8') as f:
+            json.dump(task_status, f)
+            
+        logger.info(f"任务状态更新: {progress}% - {message}")
+    except Exception as e:
+        logger.error(f"更新任务状态失败: {str(e)}")
+
+def run_import_task(image_zip_path, json_data_path, output_dir, json_mappings, test_mode=False, enhanced_recognition=False):
+    """
+    使用线程池启动导入任务
+    """
+    task_id = str(uuid.uuid4())
+    future = _executor.submit(
+        process_import_task,
+        image_zip_path,
+        json_data_path,
+        output_dir,
+        json_mappings,
+        test_mode,
+        enhanced_recognition
+    )
+    _task_results[task_id] = future
+    return task_id
+
+def get_completed_files(output_dir):
+    """获取已完成的导入文件列表"""
+    result_files = []
+    try:
+        # 查找所有Excel和JSON结果文件
+        file_patterns = [
+            os.path.join(output_dir, "hanzi_import_*.xlsx"), 
+            os.path.join(output_dir, "hanzi_import_*.json")
+        ]
+        
+        for pattern in file_patterns:
+            for file_path in glob.glob(pattern):
+                filename = os.path.basename(file_path)
+                # 从文件名中提取时间戳
+                try:
+                    timestamp_str = filename.replace("hanzi_import_", "").split(".")[0]
+                    timestamp = time.strftime('%Y-%m-%d %H:%M:%S', 
+                                            time.strptime(timestamp_str, '%Y%m%d%H%M%S'))
+                except:
+                    timestamp = "未知时间"
+                
+                # 构建文件信息
+                media_url = getattr(settings, 'MEDIA_URL', '/media/')
+                file_url = f"{media_url}import_results/{filename}"
+                
+                result_files.append({
+                    'filename': filename,
+                    'path': file_path,
+                    'url': file_url,
+                    'timestamp': timestamp
+                })
+        
+        # 按时间倒序排序
+        result_files.sort(key=lambda x: x['timestamp'], reverse=True)
+    except Exception as e:
+        logger.error(f"获取已完成文件列表失败: {str(e)}")
+    
+    return result_files
+
+def get_active_tasks(output_dir):
+    """获取正在进行的任务列表"""
+    active_tasks = []
+    try:
+        # 查找所有任务状态文件
+        status_files = glob.glob(os.path.join(output_dir, "task_*_status.json"))
+        
+        for status_file in status_files:
+            try:
+                with open(status_file, 'r', encoding='utf-8') as f:
+                    task_status = json.load(f)
+                
+                # 跳过已完成或失败超过1小时的任务
+                if task_status['status'] in ['completed', 'failed']:
+                    file_time = os.path.getmtime(status_file)
+                    if time.time() - file_time > 3600:  # 1小时
+                        os.remove(status_file)  # 删除过期状态文件
+                        continue
+                
+                # 添加任务状态文本
+                status_map = {
+                    'pending': '等待中',
+                    'processing': '处理中',
+                    'completed': '已完成',
+                    'failed': '失败'
+                }
+                task_status['status_text'] = status_map.get(task_status['status'], '未知')
+                
+                active_tasks.append(task_status)
+            except Exception as e:
+                logger.error(f"读取任务状态失败: {str(e)}")
+    except Exception as e:
+        logger.error(f"获取活动任务列表失败: {str(e)}")
+    
+    return active_tasks
+
+@csrf_exempt
+def import_data_view(request):
+    """处理汉字数据导入请求，支持ZIP图片和JSON数据"""
+    if request.method == 'POST':
+        # 获取上传的文件
+        image_zip = request.FILES.get('image_zip')
+        json_data = request.FILES.get('json_data')
+        
+        # 获取输出格式
+        output_format = request.POST.get('output_format', 'excel')
+        
+        # 获取是否为测试模式
+        test_mode = request.POST.get('test_mode', 'false').lower() == 'true'
+        
+        # 获取是否启用增强识别
+        enhanced_recognition = request.POST.get('enhanced_recognition', 'false').lower() == 'true'
+        
+        # 打印调试信息
+        print(f"收到上传请求 - ZIP: {image_zip.name if image_zip else 'None'}, JSON: {json_data.name if json_data else 'None'}")
+        print(f"测试模式: {test_mode}, 增强识别: {enhanced_recognition}")
+        
+        # 验证上传的文件
+        if not image_zip:
+            return JsonResponse({'status': 'error', 'message': '请上传图片ZIP文件'})
+            
+        if not json_data:
+            return JsonResponse({'status': 'error', 'message': '请上传JSON数据文件'})
+            
+        # 检查文件类型
+        if not image_zip.name.lower().endswith('.zip'):
+            return JsonResponse({'status': 'error', 'message': '图片文件必须是ZIP格式'})
+            
+        if not json_data.name.lower().endswith('.json'):
+            return JsonResponse({'status': 'error', 'message': 'JSON文件格式不正确'})
+        
+        # 创建临时目录
+        temp_dir = tempfile.mkdtemp(prefix="hanzi_import_")
+        print(f"创建临时目录: {temp_dir}")
+        
+        try:
+            # 保存上传的文件
+            image_zip_path = os.path.join(temp_dir, image_zip.name)
+            with open(image_zip_path, 'wb+') as f:
+                for chunk in image_zip.chunks():
+                    f.write(chunk)
+            print(f"ZIP文件已保存: {image_zip_path}")
+                    
+            json_data_path = os.path.join(temp_dir, json_data.name)
+            with open(json_data_path, 'wb+') as f:
+                for chunk in json_data.chunks():
+                    f.write(chunk)
+            print(f"JSON文件已保存: {json_data_path}")
+            
+            # 验证文件是否正确保存
+            if not os.path.exists(image_zip_path) or os.path.getsize(image_zip_path) == 0:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': f'ZIP文件保存失败或为空: {image_zip_path}'
+                })
+                
+            if not os.path.exists(json_data_path) or os.path.getsize(json_data_path) == 0:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': f'JSON文件保存失败或为空: {json_data_path}'
+                })
+            
+            # 构建JSON映射
+            json_mappings = {}
+            level_key = request.POST.get('level_key')
+            comment_key = request.POST.get('comment_key')
+            structure_key = request.POST.get('structure_key')
+            variant_key = request.POST.get('variant_key')
+            
+            if level_key:
+                json_mappings['level'] = level_key
+            if comment_key:
+                json_mappings['comment'] = comment_key
+            if structure_key:
+                json_mappings['structure'] = structure_key
+            if variant_key:
+                json_mappings['variant'] = variant_key
+                
+            print(f"JSON映射: {json_mappings}")
+                
+            # 设置输出目录
+            output_dir = os.path.join(settings.MEDIA_ROOT, "import_results")
+            os.makedirs(output_dir, exist_ok=True)
+            print(f"输出目录: {output_dir}")
+            
+            # 使用Celery异步任务处理导入
+            from .tasks import process_import_data_task
+            
+            # 启动异步任务并获取任务ID
+            task = process_import_data_task.delay(
+                image_zip_path,
+                json_data_path,
+                output_dir,
+                json_mappings if json_mappings else None,
+                test_mode,
+                enhanced_recognition
+            )
+            
+            print(f"Celery任务已提交，任务ID: {task.id}")
+            
+            # 返回任务ID和状态信息
+            return JsonResponse({
+                'status': 'processing',
+                'message': '数据导入任务已提交，正在后台处理',
+                'task_id': task.id
+            })
+            
+        except Exception as e:
+            import traceback
+            print(f"提交导入任务失败: {str(e)}")
+            print(traceback.format_exc())
+            
+            # 清理临时文件
+            if os.path.exists(temp_dir):
+                shutil.rmtree(temp_dir, ignore_errors=True)
+                
+            return JsonResponse({
+                'status': 'error',
+                'message': f'提交导入任务失败: {str(e)}'
+            })
+    
+    # GET请求返回导入页面
+    return render(request, 'hanzi_app/import_data.html', {
+        'title': '导入汉字数据'
+    })
+
+# 新增任务状态检查API
+@require_http_methods(["GET"])
+def check_import_task(request):
+    """检查导入任务状态"""
+    task_id = request.GET.get('task_id')
+    
+    if not task_id:
+        return JsonResponse({'status': 'error', 'message': '缺少任务ID'})
+    
+    from .tasks import process_import_data_task
+    from celery.result import AsyncResult
+    
+    # 获取任务状态
+    task_result = AsyncResult(task_id)
+    print(f"检查任务 {task_id} 状态：{task_result.state}")
+    
+    result = {
+        'task_id': task_id,
+        'state': task_result.state,
+        'status': 'processing',
+        'message': '导入任务正在处理中'
+    }
+    
+    if task_result.ready():
+        if task_result.successful():
+            # 任务成功完成，获取结果
+            try:
+                task_data = task_result.result
+                
+                # 打印完整的任务结果
+                print(f"任务 {task_id} 结果：{task_data}")
+                
+                # 检查结果是否为字典
+                if isinstance(task_data, dict):
+                    result['status'] = task_data.get('status', 'completed')
+                    result['message'] = task_data.get('message', '数据导入完成')
+                    result['file_url'] = task_data.get('file_url')
+                    result['processed_count'] = task_data.get('processed_count', 0)
+                    result['recognized_count'] = task_data.get('recognized_count', 0)
+                    
+                    # 检查结果文件是否存在
+                    if result['file_url']:
+                        file_path = os.path.join(settings.MEDIA_ROOT, 
+                                              result['file_url'].replace('/media/', ''))
+                        if os.path.exists(file_path):
+                            result['file_size'] = os.path.getsize(file_path)
+                            result['file_exists'] = True
+                        else:
+                            result['file_exists'] = False
+                            print(f"警告：结果文件不存在：{file_path}")
+                else:
+                    result['status'] = 'completed'
+                    result['message'] = '任务完成，但结果格式不符合预期'
+                    print(f"任务结果格式不符合预期：{type(task_data)}")
+            except Exception as e:
+                import traceback
+                print(f"获取任务结果出错：{str(e)}")
+                print(traceback.format_exc())
+                result['status'] = 'error'
+                result['message'] = f'获取任务结果失败：{str(e)}'
+        else:
+            # 任务失败
+            result['status'] = 'failed'
+            error_msg = str(task_result.result) if task_result.result else '任务执行失败'
+            result['message'] = error_msg
+            print(f"任务 {task_id} 失败：{error_msg}")
+    
+    return JsonResponse(result)
+
+@require_http_methods(["GET"])
+def check_import_status(request):
+    """
+    检查导入任务状态的API
+    """
+    task_id = request.GET.get('task_id')
+    if not task_id:
+        return JsonResponse({'error': '缺少任务ID'}, status=400)
+    
+    # 查找任务状态文件
+    media_root = getattr(settings, 'MEDIA_ROOT', os.path.join(settings.BASE_DIR, 'media'))
+    output_dir = os.path.join(media_root, 'import_results')
+    status_file = os.path.join(output_dir, f"task_{task_id}_status.json")
+    
+    if not os.path.exists(status_file):
+        return JsonResponse({
+            'status': 'pending',
+            'progress': 0,
+            'status_message': '任务正在排队...'
+        })
+    
+    try:
+        with open(status_file, 'r', encoding='utf-8') as f:
+            task_status = json.load(f)
+        
+        return JsonResponse({
+            'status': task_status.get('status', 'pending'),
+            'progress': task_status.get('progress', 0),
+            'status_message': task_status.get('message', '等待处理'),
+            'result_file': task_status.get('result_file', '')
+        })
+    except Exception as e:
+        logger.error(f"读取任务状态失败: {str(e)}")
+        return JsonResponse({
+            'status': 'error',
+            'error': f"读取任务状态失败: {str(e)}"
+        }, status=500)
+
+@require_http_methods(["POST"])
+@csrf_exempt
+def delete_import_file(request):
+    """
+    删除导入结果文件
+    """
+    filename = request.POST.get('filename')
+    if not filename:
+        return JsonResponse({'error': '缺少文件名'}, status=400)
+    
+    media_root = getattr(settings, 'MEDIA_ROOT', os.path.join(settings.BASE_DIR, 'media'))
+    output_dir = os.path.join(media_root, 'import_results')
+    file_path = os.path.join(output_dir, filename)
+    
+    # 安全检查，确保只删除导入结果目录中的文件
+    if not os.path.normpath(file_path).startswith(os.path.normpath(output_dir)):
+        return JsonResponse({'error': '无效的文件路径'}, status=403)
+    
+    try:
+        if os.path.exists(file_path):
+            os.remove(file_path)
+            # 同时删除相关的失败日志文件（如果存在）
+            log_file = os.path.splitext(file_path)[0] + '_failed.log'
+            if os.path.exists(log_file):
+                os.remove(log_file)
+            return JsonResponse({'success': True})
+        else:
+            return JsonResponse({'error': '文件不存在'}, status=404)
+    except Exception as e:
+        logger.error(f"删除文件失败: {str(e)}")
+        return JsonResponse({'error': f'删除文件失败: {str(e)}'}, status=500)
