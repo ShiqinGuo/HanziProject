@@ -13,7 +13,7 @@ urlpatterns = [
     path('edit/<str:hanzi_id>/', views.edit_hanzi, name='edit_hanzi'),
     path('update/<str:hanzi_id>/', views.update_hanzi, name='update_hanzi'),
     path('import/', views.import_view, name='import'),
-    path('import-data/', views.import_data_view, name='import_data'),
+    path('import-data/', views.import_data, name='import_data'),
     path('export/', views.export_hanzi, name='export_hanzi'),
     path('export-page/', views.export_page, name='export_page'),
     path('download/<str:filename>/', views.download_file, name='download_file'),
@@ -28,4 +28,5 @@ urlpatterns = [
     path('check-import-status/', views.check_import_status, name='check_import_status'),
     path('delete-import-file/', views.delete_import_file, name='delete_import_file'),
     path('check-import-task/', views.check_import_task, name='check_import_task'),
+    path('api/celery-status/', views.check_celery_status, name='check_celery_status'),
 ]

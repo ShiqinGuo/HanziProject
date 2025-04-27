@@ -6,6 +6,7 @@ import threading
 import sys
 import signal
 import atexit
+import argparse
 
 # 存储所有进程，以便在退出时关闭
 processes = []
@@ -39,17 +40,51 @@ def start_redis():
         print(f"启动Redis失败: {str(e)}")
         return None
 
+def check_celery_tasks(task_type='all'):
+    """
+    检查Celery任务队列状态
+    
+    Args:
+        task_type: 要检查的任务类型，可选值: 'active', 'scheduled', 'reserved', 'all'
+    """
+    print(f"正在检查Celery {task_type} 任务...")
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    if task_type == 'all':
+        task_types = ['active', 'scheduled', 'reserved']
+    else:
+        task_types = [task_type]
+    
+    for t_type in task_types:
+        cmd = f"{sys.executable} -m celery -A hanzi_project inspect {t_type}"
+        print(f"执行命令: {cmd}")
+        
+        try:
+            result = subprocess.run(cmd, shell=True, cwd=current_dir, capture_output=True, text=True)
+            print(f"\n--- {t_type.upper()} 任务 ---")
+            if result.stdout:
+                print(result.stdout)
+            else:
+                print(f"没有 {t_type} 任务")
+            
+            if result.stderr and "Error" in result.stderr:
+                print(f"错误: {result.stderr}")
+        except Exception as e:
+            print(f"检查 {t_type} 任务失败: {str(e)}")
+    
+    print("\n任务队列检查完成")
+
 def start_celery():
     """启动Celery worker"""
     print("正在启动Celery worker...")
     # 使用当前Python解释器启动Celery
     current_dir = os.path.dirname(os.path.abspath(__file__))
     
-    # 构建Celery命令 - 使用hanzi_project而不是hanzi_app
+    # 构建Celery命令
     celery_cmd = f"{sys.executable} -m celery -A hanzi_project worker -l info -P solo"
     
     try:
-        # 在Windows上，我们使用shell=True
+        # 在Windows上shell=True
         celery_process = subprocess.Popen(celery_cmd, shell=True, cwd=current_dir)
         print(f"Celery worker启动成功，进程ID: {celery_process.pid}")
         return celery_process
@@ -88,6 +123,18 @@ def stop_processes():
 
 def main():
     """主函数，启动所有服务"""
+    # 解析命令行参数
+    parser = argparse.ArgumentParser(description='汉字项目服务管理')
+    parser.add_argument('--tasks', type=str, choices=['active', 'scheduled', 'reserved', 'all'], 
+                        help='检查Celery任务队列状态')
+    
+    args = parser.parse_args()
+    
+    # 如果指定了检查任务队列，只执行该操作然后退出
+    if args.tasks:
+        check_celery_tasks(args.tasks)
+        return
+    
     # 创建logs目录
     logs_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
     os.makedirs(logs_dir, exist_ok=True)
