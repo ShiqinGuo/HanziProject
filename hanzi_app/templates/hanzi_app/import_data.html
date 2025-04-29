@@ -262,6 +262,9 @@
     <div class="import-container">
         <h2 class="section-title">汉字数据导入工具</h2>
         
+        <!-- 清理消息容器 -->
+        <div id="clean-messages"></div>
+        
         <!-- 导入表单卡片 -->
         <div class="card mb-4">
             <div class="card-header">
@@ -395,39 +398,22 @@
             </div>
         </div>
         
-        <!-- 已完成文件列表 -->
-        {% if completed_files %}
-        <div class="card">
+        <!-- 添加一个可下载的导入结果文件列表区域 -->
+        <div class="card mb-4" id="importFilesCard">
             <div class="card-header">
-                <h5 class="mb-0"><i class="fas fa-check-circle me-2"></i>已完成的导入任务</h5>
-                <button id="refreshBtn" class="btn btn-outline-primary btn-sm">
+                <h5 class="mb-0"><i class="fas fa-download me-2"></i>可下载的导入结果</h5>
+                <button id="refreshFilesBtn" class="btn btn-outline-primary btn-sm">
                     <i class="fas fa-sync-alt me-1"></i>刷新
                 </button>
             </div>
             <div class="card-body">
-                <div class="list-group">
-                    {% for file in completed_files %}
-                    <div class="list-group-item file-list-item">
-                        <div>
-                            <i class="fas fa-file-excel me-2 text-success"></i>
-                            <span>{{ file.filename }}</span>
-                            <small class="text-muted ms-2">{{ file.timestamp }}</small>
-                            <span class="badge bg-success ms-2">已完成</span>
-                        </div>
-                        <div>
-                            <a href="{{ file.url }}" class="btn btn-outline-success btn-sm me-2" download>
-                                <i class="fas fa-download me-1"></i>下载
-                            </a>
-                            <button class="btn btn-outline-danger btn-sm delete-file" data-file="{{ file.filename }}">
-                                <i class="fas fa-trash me-1"></i>删除
-                            </button>
-                        </div>
-                    </div>
-                    {% endfor %}
+                <div id="importFilesContainer">
+                    <p class="text-center py-3">
+                        <i class="fas fa-spinner fa-spin me-2"></i>正在加载导入文件列表...
+                    </p>
                 </div>
             </div>
         </div>
-        {% endif %}
         
     </div>
 
@@ -542,6 +528,8 @@
                     contentType: false,
                     success: function(response) {
                         if (response.status === 'processing') {
+                            // 保存任务ID到sessionStorage，以便页面刷新后恢复
+                            sessionStorage.setItem('activeImportTaskId', response.task_id);
                             // 任务已提交，开始轮询任务状态
                             $('#taskMessage').text(response.message);
                             pollTaskStatus(response.task_id);
@@ -594,22 +582,35 @@
                             // 更新进度条
                             updateTaskProgress(response);
                             
+                            // 更新任务日志（如果有）
+                            if (response.task_logs && response.task_logs.length > 0) {
+                                updateTaskLogs(response.task_logs);
+                            }
+                            
                             // 如果任务已完成或失败，停止轮询
                             if (response.status === 'success' || response.status === 'completed') {
                                 clearInterval(interval);
+                                // 任务完成，清除sessionStorage中的任务ID
+                                sessionStorage.removeItem('activeImportTaskId');
                                 taskCompleted(response);
                             } else if (response.status === 'failed' || response.status === 'error') {
                                 clearInterval(interval);
+                                // 任务失败，清除sessionStorage中的任务ID
+                                sessionStorage.removeItem('activeImportTaskId');
                                 taskFailed(response);
                             } else if (response.state === 'SUCCESS' && !response.status) {
                                 // 特殊情况：任务完成但没有返回正确的状态
                                 clearInterval(interval);
+                                // 清除sessionStorage中的任务ID
+                                sessionStorage.removeItem('activeImportTaskId');
                                 response.status = 'completed';
                                 response.message = '任务已完成';
                                 taskCompleted(response);
                             } else if (response.state === 'FAILURE' && !response.status) {
                                 // 特殊情况：任务失败但没有返回正确的状态
                                 clearInterval(interval);
+                                // 清除sessionStorage中的任务ID
+                                sessionStorage.removeItem('activeImportTaskId');
                                 response.status = 'failed';
                                 response.message = '任务执行失败';
                                 taskFailed(response);
@@ -622,6 +623,8 @@
                             // 如果连续失败次数过多，停止轮询
                             if (pollCount > 10) {
                                 clearInterval(interval);
+                                // 清除sessionStorage中的任务ID
+                                sessionStorage.removeItem('activeImportTaskId');
                                 taskFailed({ message: '检查任务状态失败: ' + error });
                             }
                         }
@@ -631,23 +634,48 @@
             
             // 更新任务进度
             function updateTaskProgress(data) {
-                // 进度默认为不确定的动画
-                let progress = data.progress || (Math.random() * 30 + 20).toFixed(0); // 随机进度防止用户焦虑
+                // 获取进度值，如果后端有明确提供则使用后端数据
+                let progress = data.progress || 20;
                 
                 // 根据返回的状态和进度更新UI
-                if (data.state === 'SUCCESS' && (data.status === 'success' || data.status === 'completed')) {
+                if (data.state === 'SUCCESS' || data.status === 'success' || data.status === 'completed') {
                     progress = 100;
+                    $('#taskStatus').text('完成').removeClass().addClass('task-status status-completed');
                 } else if (data.state === 'STARTED') {
-                    // 如果任务已开始，显示至少30%的进度
-                    progress = Math.max(progress, 30); 
+                    // 如果任务已开始，确保进度条有动画效果
+                    $('#taskProgressBar').addClass('progress-bar-animated');
+                    // 根据消息中的百分比提取进度值
+                    if (data.message && data.message.includes('%')) {
+                        try {
+                            const percentMatch = data.message.match(/(\d+)%/);
+                            if (percentMatch && percentMatch[1]) {
+                                const extractedPercent = parseInt(percentMatch[1]);
+                                if (!isNaN(extractedPercent) && extractedPercent > progress) {
+                                    progress = extractedPercent;
+                                }
+                            }
+                        } catch (e) {
+                            console.error("提取进度失败", e);
+                        }
+                    }
+                    $('#taskStatus').text('处理中').removeClass().addClass('task-status status-processing');
                 } else if (data.state === 'RETRY') {
-                    // 如果任务重试中，显示至少40%的进度
                     progress = Math.max(progress, 40);
                     $('#taskStatus').text('重试中').removeClass().addClass('task-status status-processing');
                 } else if (data.state === 'PENDING') {
-                    // 如果任务待处理，显示较低进度
                     progress = Math.min(progress, 20);
                     $('#taskStatus').text('队列中').removeClass().addClass('task-status status-pending');
+                }
+                
+                // 如果数据中有更详细的日志，从日志中提取最新进度
+                if (data.task_logs && data.task_logs.length > 0) {
+                    for (let i = data.task_logs.length - 1; i >= 0; i--) {
+                        const log = data.task_logs[i];
+                        if (log.progress && !isNaN(log.progress)) {
+                            progress = Math.max(progress, log.progress);
+                            break;
+                        }
+                    }
                 }
                 
                 // 更新进度条
@@ -683,19 +711,32 @@
                     ((data.recognized_count / data.processed_count) * 100).toFixed(1) + '%' : '0%';
                 $('#successRate').text(successRate);
                 
-                // 启用下载按钮
+                // 启用下载按钮并添加日志文件下载链接
                 if (data.file_url) {
                     $('#downloadResultBtn').attr('href', data.file_url);
                     $('#resultDetails').removeClass('d-none');
+                    
+                    // 检查是否有日志文件
+                    const logUrl = data.file_url.replace('.xlsx', '_failed.log');
+                    if (logUrl) {
+                        // 添加下载日志文件按钮
+                        if ($('#downloadLogBtn').length === 0) {
+                            $('#resultDetails .mt-3').append(`
+                                <a href="${logUrl}" class="btn btn-outline-info ms-2" id="downloadLogBtn" download>
+                                    <i class="fas fa-file-alt me-1"></i>下载日志文件
+                                </a>
+                            `);
+                        } else {
+                            $('#downloadLogBtn').attr('href', logUrl);
+                        }
+                    }
                 }
                 
                 // 重新启用提交按钮
                 $('#submitBtn').prop('disabled', false);
                 
-                // 刷新页面显示最新的导入结果文件
-                setTimeout(function() {
-                    location.reload();
-                }, 5000);
+                // 刷新文件列表而不是整个页面
+                loadImportFiles();
             }
             
             // 任务失败处理
@@ -706,35 +747,149 @@
                 $('#submitBtn').prop('disabled', false);
             }
             
+            // 加载可用的导入结果文件
+            loadImportFiles();
+            
             // 刷新按钮点击事件
-            $('#refreshBtn').click(function() {
-                location.reload();
+            $('#refreshFilesBtn').click(function() {
+                loadImportFiles();
             });
             
-            // 删除文件按钮点击事件
-            $('.delete-file').click(function() {
-                const filename = $(this).data('file');
-                if (confirm('确定要删除文件 ' + filename + ' 吗？')) {
-                    $.ajax({
-                        url: '{% url "hanzi_app:delete_import_file" %}',
-                        type: 'POST',
-                        data: {
-                            'filename': filename,
-                            'csrfmiddlewaretoken': '{{ csrf_token }}'
-                        },
-                        success: function(response) {
-                            if (response.success) {
-                                location.reload();
-                            } else {
-                                alert('删除文件失败: ' + response.error);
-                            }
-                        },
-                        error: function() {
-                            alert('删除文件请求失败');
+            // 加载本地存储中的活动任务
+            checkSavedTasks();
+            
+            // 加载导入结果文件列表函数
+            function loadImportFiles() {
+                $.ajax({
+                    url: '{% url "hanzi_app:check_import_status" %}',
+                    type: 'GET',
+                    success: function(response) {
+                        if (response.files && response.files.length > 0) {
+                            renderImportFiles(response.files);
+                        } else {
+                            $('#importFilesContainer').html('<p class="text-center py-3">暂无可用的导入结果文件</p>');
                         }
-                    });
+                    },
+                    error: function() {
+                        $('#importFilesContainer').html('<p class="text-center py-3 text-danger">加载文件列表失败</p>');
+                    }
+                });
+            }
+            
+            // 渲染导入文件列表
+            function renderImportFiles(files) {
+                let html = '<div class="list-group">';
+                
+                files.forEach(function(file) {
+                    html += `
+                        <div class="list-group-item file-list-item">
+                            <div>
+                                <i class="fas fa-file-excel me-2 text-success"></i>
+                                <span>${file.filename}</span>
+                                <small class="text-muted ms-2">${file.timestamp}</small>
+                                <small class="text-muted ms-2">${file.size_formatted}</small>
+                                ${file.has_log ? '<span class="badge bg-info ms-2">含日志</span>' : ''}
+                            </div>
+                            <div>
+                                <a href="${file.url}" class="btn btn-outline-success btn-sm me-2" download>
+                                    <i class="fas fa-download me-1"></i>下载Excel
+                                </a>
+                                ${file.has_log ? 
+                                    `<a href="${file.log_url}" class="btn btn-outline-info btn-sm me-2" download>
+                                        <i class="fas fa-file-alt me-1"></i>下载日志
+                                    </a>` : ''
+                                }
+                                <button class="btn btn-outline-danger btn-sm delete-file" data-file="${file.filename}">
+                                    <i class="fas fa-trash me-1"></i>删除
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                html += '</div>';
+                $('#importFilesContainer').html(html);
+                
+                // 绑定删除按钮事件
+                $('.delete-file').click(function() {
+                    const filename = $(this).data('file');
+                    if (confirm('确定要删除文件 ' + filename + ' 吗？')) {
+                        deleteImportFile(filename);
+                    }
+                });
+            }
+            
+            // 删除导入文件
+            function deleteImportFile(filename) {
+                $.ajax({
+                    url: '{% url "hanzi_app:delete_import_file" %}',
+                    type: 'POST',
+                    data: {
+                        'filename': filename,
+                        'csrfmiddlewaretoken': '{{ csrf_token }}'
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            loadImportFiles();
+                        } else {
+                            alert('删除文件失败: ' + response.error);
+                        }
+                    },
+                    error: function() {
+                        alert('删除文件请求失败');
+                    }
+                });
+            }
+            
+            // 检查本地存储中的活动任务
+            function checkSavedTasks() {
+                // 从sessionStorage检查是否有活动任务
+                const activeTaskId = sessionStorage.getItem('activeImportTaskId');
+                if (activeTaskId) {
+                    // 恢复任务状态
+                    $('#importProgressCard').removeClass('d-none');
+                    pollTaskStatus(activeTaskId);
                 }
-            });
+            }
+            
+            // 更新任务日志
+            function updateTaskLogs(logs) {
+                // 如果日志区域不存在，创建它
+                if ($('#taskLogsContainer').length === 0) {
+                    $('#currentTaskInfo').append(`
+                        <div class="mt-3" id="taskLogsContainer">
+                            <h6 class="mb-2">任务执行日志:</h6>
+                            <div class="bg-light p-2 rounded" style="max-height: 200px; overflow-y: auto;">
+                                <ul class="list-unstyled mb-0" id="taskLogsList"></ul>
+                            </div>
+                        </div>
+                    `);
+                }
+                
+                // 更新日志列表
+                const logsList = $('#taskLogsList');
+                logsList.empty();
+                
+                logs.forEach(function(log) {
+                    let logClass = '';
+                    if (log.status === 'error') {
+                        logClass = 'text-danger';
+                    } else if (log.status === 'success') {
+                        logClass = 'text-success';
+                    }
+                    
+                    logsList.append(`
+                        <li class="mb-1 ${logClass}">
+                            <small class="text-muted">${log.timestamp}</small>
+                            <span class="ms-2">${log.message}</span>
+                        </li>
+                    `);
+                });
+                
+                // 滚动到日志底部
+                const logsContainer = $('#taskLogsContainer .bg-light');
+                logsContainer.scrollTop(logsContainer[0].scrollHeight);
+            }
         });
     </script>
 </body>

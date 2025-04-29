@@ -1760,9 +1760,17 @@ def get_completed_files(output_dir):
             logger.info(f"创建导入结果目录: {output_dir}")
             return completed_files
         
-        # 获取所有Excel文件
-        excel_files = [f for f in os.listdir(output_dir) 
-                     if f.lower().endswith('.xlsx') and 'hanzi_import_' in f.lower()]
+        # 获取所有Excel文件和日志文件
+        all_files = os.listdir(output_dir)
+        excel_files = [f for f in all_files if f.lower().endswith('.xlsx') and 'hanzi_import_' in f.lower()]
+        log_files = [f for f in all_files if f.lower().endswith('_failed.log') and 'hanzi_import_' in f.lower()]
+        
+        # 创建日志文件映射
+        log_map = {}
+        for log_file in log_files:
+            # 从日志文件名提取基本名称（不包括_failed.log后缀）
+            base_name = os.path.splitext(log_file)[0].replace('_failed', '')
+            log_map[base_name] = log_file
         
         # 按修改时间排序（最新的在前）
         excel_files.sort(key=lambda f: os.path.getmtime(os.path.join(output_dir, f)), reverse=True)
@@ -1784,9 +1792,19 @@ def get_completed_files(output_dir):
                 file_size = os.path.getsize(file_path)
                 
                 # 检查是否有对应的日志文件
-                log_filename = os.path.splitext(filename)[0] + '_failed.log'
+                base_name = os.path.splitext(filename)[0]
+                log_filename = f"{base_name}_failed.log"
                 log_path = os.path.join(output_dir, log_filename)
                 has_log = os.path.exists(log_path)
+                
+                # 构建日志文件URL
+                log_url = None
+                if has_log:
+                    if output_dir.startswith(settings.MEDIA_ROOT):
+                        relative_log_path = os.path.relpath(log_path, settings.MEDIA_ROOT)
+                        log_url = f"/media/{relative_log_path.replace(os.sep, '/')}"
+                    else:
+                        log_url = f"/media/import_results/{log_filename}"
                 
                 # 添加到文件列表
                 completed_files.append({
@@ -1796,7 +1814,8 @@ def get_completed_files(output_dir):
                     'size': file_size,
                     'size_formatted': format_file_size(file_size),
                     'has_log': has_log,
-                    'log_url': f"/media/import_results/{log_filename}" if has_log else None
+                    'log_url': log_url,
+                    'log_filename': log_filename if has_log else None
                 })
     except Exception as e:
         logger.error(f"获取已完成文件列表失败: {str(e)}")
@@ -2020,23 +2039,86 @@ def check_import_task(request):
         task_result = AsyncResult(task_id)
         logger.info(f"检查任务 {task_id} 状态：{task_result.state}")
         
+        # 从Redis中获取任务日志记录
+        task_logs = []
+        try:
+            redis_client = redis.from_url(app.conf.broker_url)
+            task_log_key = f"task_logs:{task_id}"
+            logs = redis_client.lrange(task_log_key, 0, -1)
+            if logs:
+                task_logs = [json.loads(log.decode('utf-8')) for log in logs]
+        except Exception as e:
+            logger.warning(f"获取任务日志失败: {e}")
+        
+        # 保存任务状态到session，以便用户退出页面后返回可以继续查看状态
+        session_key = f"task_status:{task_id}"
+        current_task_status = {
+            'id': task_id,
+            'state': task_result.state,
+            'logs': task_logs,
+            'last_check': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        }
+        request.session[session_key] = current_task_status
+        
+        # 从日志中获取最新的进度
+        latest_progress = 20  # 默认进度
+        latest_message = '导入任务正在处理中'
+        
+        # 先检查日志记录
+        if task_logs:
+            # 从最新的日志中提取进度信息
+            for log in reversed(task_logs):
+                if 'progress' in log:
+                    latest_progress = log['progress']
+                    if 'message' in log:
+                        latest_message = log['message']
+                    break
+        
+        # 根据任务状态判断进度
+        if not task_logs and task_result.state == 'PENDING':
+            # 如果没有日志且状态是PENDING，设置初始进度
+            latest_progress = 5
+            latest_message = '任务排队中...'
+        elif task_result.state == 'STARTED':
+            # 根据状态设置最小进度
+            if latest_progress < 10:
+                latest_progress = 10
+                latest_message = '任务已开始，正在解压文件...'
+        
+        # 如果是已知的进度百分比字符串，从中提取实际数字
+        if isinstance(latest_message, str) and '进度' in latest_message and '%' in latest_message:
+            try:
+                # 尝试从消息中提取进度数字
+                import re
+                progress_match = re.search(r'(\d+)%', latest_message)
+                if progress_match:
+                    extracted_progress = int(progress_match.group(1))
+                    if extracted_progress > latest_progress:
+                        latest_progress = extracted_progress
+            except Exception:
+                pass
+        
+        # 构建响应结果
         result = {
             'task_id': task_id,
             'state': task_result.state,
             'status': 'processing',
-            'message': '导入任务正在处理中',
-            'progress': 20,  # 默认进度
+            'message': latest_message,
+            'progress': latest_progress,
+            'task_logs': task_logs[-5:] if task_logs else []  # 只返回最近的5条日志
         }
         
         # 更新进度状态
         if task_result.state == 'PENDING':
-            result['progress'] = 10
-            result['message'] = '任务排队中...'
+            if latest_progress < 10:
+                result['progress'] = 5
+            result['message'] = latest_message or '任务排队中...'
         elif task_result.state == 'STARTED':
-            result['progress'] = 30
-            result['message'] = '任务已开始处理...'
+            # 确保进度至少为20%
+            result['progress'] = max(latest_progress, 20)
+            result['message'] = latest_message or '任务处理中...'
         elif task_result.state == 'RETRY':
-            result['progress'] = 40
+            result['progress'] = max(latest_progress, 40)
             result['message'] = '任务正在重试...'
         
         # 处理已完成的任务
@@ -2085,6 +2167,12 @@ def check_import_task(request):
                 except Exception:
                     pass
         
+        # 获取import_results目录中所有可下载的文件
+        import_results_dir = os.path.join(settings.MEDIA_ROOT, "import_results")
+        completed_files = get_completed_files(import_results_dir)
+        if completed_files:
+            result['completed_files'] = completed_files[:10]  # 只返回最近的10个文件
+        
         return JsonResponse(result)
     except Exception as e:
         logger.error(f"检查任务状态时出错: {str(e)}")
@@ -2097,26 +2185,88 @@ def check_import_task(request):
 
 @require_http_methods(["GET"])
 def check_import_status(request):
-    """检查导入任务状态和列出已完成的导入文件"""
-    output_dir = os.path.join(settings.MEDIA_ROOT, "import_results")
+    """检查导入状态，返回导入任务列表和可用的导入结果文件"""
+    import_results_dir = os.path.join(settings.MEDIA_ROOT, "import_results")
     
-    # 获取已完成的文件列表
-    completed_files = get_completed_files(output_dir)
-    
-    # 获取活动任务列表
     try:
-        active_tasks = get_active_tasks(output_dir)
+        # 获取可用的导入结果文件
+        files = get_completed_files(import_results_dir)
+        
+        # 获取活动任务
+        tasks = []
+        for key, value in request.session.items():
+            if key.startswith('task_status:'):
+                task_id = key.split(':', 1)[1]
+                # 检查是否为最近24小时内的任务
+                last_check = value.get('last_check')
+                if last_check:
+                    try:
+                        last_check_time = datetime.strptime(last_check, '%Y-%m-%d %H:%M:%S')
+                        time_diff = datetime.now() - last_check_time
+                        if time_diff.total_seconds() < 86400:  # 24小时内
+                            tasks.append({
+                                'id': task_id,
+                                'state': value.get('state'),
+                                'last_check': last_check
+                            })
+                    except Exception:
+                        pass
+        
+        # 检查临时目录
+        temp_import_dir = os.path.join(settings.MEDIA_ROOT, "temp_import")
+        import_folders = []
+        expired_folders = []
+        
+        if os.path.exists(temp_import_dir):
+            try:
+                for item in os.listdir(temp_import_dir):
+                    full_path = os.path.join(temp_import_dir, item)
+                    if os.path.isdir(full_path) and (item.startswith('hanzi_import_') or item.startswith('import_task_') or item.startswith('tmp')):
+                        # 获取目录信息
+                        mod_time = datetime.fromtimestamp(os.path.getmtime(full_path))
+                        time_diff = datetime.now() - mod_time
+                        
+                        # 计算时间差（小时）
+                        age_hours = round(time_diff.total_seconds() / 3600, 1)
+                        
+                        # 超过48小时的文件夹视为过期
+                        if age_hours > 48:
+                            expired_folders.append(full_path)
+                        elif time_diff.total_seconds() < 86400 * 7:  # 7天内的非过期文件夹
+                            import_folders.append({
+                                'name': item,
+                                'path': full_path,
+                                'created': mod_time.strftime('%Y-%m-%d %H:%M:%S'),
+                                'age_hours': age_hours
+                            })
+            except Exception as e:
+                logger.warning(f"获取导入临时文件夹失败: {e}")
+                
+        # 清理过期的临时文件夹（后台操作）
+        if expired_folders:
+            try:
+                for folder in expired_folders:
+                    try:
+                        shutil.rmtree(folder, ignore_errors=True)
+                        logger.info(f"已清理过期的临时文件夹: {folder}")
+                    except Exception as e:
+                        logger.warning(f"清理过期文件夹失败: {folder}, 错误: {e}")
+            except Exception as e:
+                logger.warning(f"清理过期文件夹过程中出错: {e}")
+        
+        return JsonResponse({
+            'status': 'success',
+            'files': files,
+            'tasks': tasks,
+            'import_folders': import_folders[:10],  # 只返回最近的10个文件夹
+            'cleaned_folders': len(expired_folders)
+        })
     except Exception as e:
-        # 如果获取活动任务列表失败，返回空列表
-        active_tasks = []
-        logger.error(f"获取活动任务失败: {str(e)}")
-        logger.error(traceback.format_exc())
-    
-    return JsonResponse({
-        'status': 'success',
-        'active_tasks': active_tasks,
-        'completed_files': completed_files
-    })
+        logger.error(f"检查导入状态失败: {str(e)}")
+        return JsonResponse({
+            'status': 'error',
+            'message': f'检查导入状态失败: {str(e)}'
+        })
 
 @require_http_methods(["POST"])
 @csrf_exempt

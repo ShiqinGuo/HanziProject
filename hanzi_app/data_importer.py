@@ -203,13 +203,44 @@ def import_hanzi_data(
     total_count = len(image_files)
     failed_files = []
     
-    for idx, img_file in enumerate(image_files):
-        # 更新进度
-        current_progress = 25 + int(70 * idx / total_count)
-        update_status(current_progress, f"正在处理图片 {idx+1}/{total_count}: {img_file}")
+    # 确保导出目录存在
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # 生成Excel文件名称
+    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    excel_file_name = f"hanzi_import_{timestamp}.xlsx"
+    excel_path = os.path.join(output_dir, excel_file_name)
+    
+    # 生成日志文件名称
+    log_file_name = f"hanzi_import_{timestamp}_failed.log"
+    log_path = os.path.join(output_dir, log_file_name)
+    
+    # 创建日志文件
+    with open(log_path, 'w', encoding='utf-8') as log_file:
+        log_file.write(f"汉字导入处理开始时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        log_file.write(f"图片文件夹: {image_folder_path}\n")
+        log_file.write(f"等级JSON文件: {json_level_path}\n")
+        log_file.write(f"评论JSON文件: {json_comment_path}\n")
+        log_file.write(f"总图片数量: {total_count}\n\n")
+        log_file.write("===== 处理失败的图片 =====\n\n")
+    
+    # 进度计算变量
+    last_progress_update = 0
+    update_interval = max(1, min(total_count // 20, 5))  # 至少有20个进度更新点
+    
+    # 处理每个图片
+    for index, image_file in enumerate(image_files):
+        if test_mode and index >= 10:  # 测试模式只处理前10个
+            break
         
-        img_path = os.path.join(image_folder_path, img_file)
-        file_name_without_ext = os.path.splitext(img_file)[0]
+        # 更频繁地更新进度（约每5%更新一次）
+        current_progress = int(25 + (index / total_count) * 70)  # 进度从25%到95%
+        if current_progress >= last_progress_update + 2 or index % update_interval == 0:
+            update_status(current_progress, f"正在处理第 {index+1}/{total_count} 个图片 ({(index/total_count*100):.1f}%)...")
+            last_progress_update = current_progress
+        
+        img_path = os.path.join(image_folder_path, image_file)
+        file_name_without_ext = os.path.splitext(image_file)[0]
         
         # 识别文字
         try:
@@ -226,9 +257,9 @@ def import_hanzi_data(
             
             # 验证识别结果
             if not recognized_char or recognized_char == "识别失败" :
-                logger.warning(f"图片识别结果无效: {img_file}")
+                logger.warning(f"图片识别结果无效: {image_file}")
                 failed_count += 1
-                failed_files.append((img_file, "汉字识别失败"))
+                failed_files.append((image_file, "汉字识别失败"))
                 
             else:
                 # 成功识别，创建结果行
@@ -244,147 +275,86 @@ def import_hanzi_data(
                 success_count += 1
             
             # 获取level数据
-            level_value = get_json_value(level_data, img_file)
+            level_value = get_json_value(level_data, image_file)
             if level_value:
-                logger.info(f"文件 {img_file} 的等级值: {level_value}")
+                logger.info(f"文件 {image_file} 的等级值: {level_value}")
                 result_row['level'] = level_value
             
             # 获取comment数据
-            comment_value = get_json_value(comment_data, img_file)
+            comment_value = get_json_value(comment_data, image_file)
             if comment_value:
-                logger.info(f"文件 {img_file} 的评论值: {comment_value}")
+                logger.info(f"文件 {image_file} 的评论值: {comment_value}")
                 result_row['comment'] = comment_value
             
             results.append(result_row)
             
         except Exception as e:
-            logger.error(f"图片识别异常: {img_file}, 错误: {str(e)}")
+            logger.error(f"图片识别异常: {image_file}, 错误: {str(e)}")
             failed_count += 1
-            failed_files.append((img_file, str(e)))
+            failed_files.append((image_file, str(e)))
             
             # 如果识别失败，跳过当前图片
             continue
     
-    update_status(95, "正在生成结果文件...")
+    update_status(95, "正在生成Excel结果文件...")
        
     logger.info(f"处理完成：共 {total_count} 张图片，成功 {success_count} 张，失败 {failed_count} 张")
     
-    # 创建输出目录
+    # 将识别结果写入Excel表格
     try:
-        # 确保output_dir是绝对路径
+        # 创建DataFrame
+        df = pd.DataFrame(results)
+        
+        # 确保输出目录使用绝对路径
         if not os.path.isabs(output_dir):
             output_dir = os.path.join(settings.MEDIA_ROOT, output_dir)
             
-        # 创建目录及其父目录
-        os.makedirs(output_dir, exist_ok=True)
-        
         # 检查目录是否可写
         if not os.access(output_dir, os.W_OK):
-            print(f"警告：输出目录不可写: {output_dir}")
-            # 尝试设置权限
-            try:
-                os.chmod(output_dir, 0o755)
-                print(f"已尝试修改目录权限")
-            except Exception as e:
-                print(f"修改目录权限失败: {str(e)}")
+            raise ValueError(f"输出目录不可写: {output_dir}")
         
-    except Exception as e:
-        raise ValueError(f"创建输出目录失败: {str(e)}")
-    
-    # 创建Excel文件
-    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-    excel_filename = f"hanzi_import_{timestamp}.xlsx"
-    
-    # 确保output_dir路径
-    if not os.path.isabs(output_dir):
-        output_dir = os.path.join(settings.MEDIA_ROOT, output_dir)
-        
-    # 创建规范化的Excel文件路径
-    excel_path = os.path.normpath(os.path.join(output_dir, excel_filename))
-    
-    print(f"准备创建Excel文件: {excel_path}")
-    
-    # 写入Excel
-    try:
-        ordered_results = []
-        for row in results:
-            ordered_row = {
-                'character': row.get('character'),
-                'structure': row.get('structure'),
-                'variant': row.get('variant'),
-                'level': row.get('level'),
-                'comment': row.get('comment'),
-                'image_path': row.get('image_path')
-            }
-            ordered_results.append(ordered_row)
-        
-        # 创建DataFrame并保持指定顺序
-        columns = ['character', 'structure', 'variant', 'level', 'comment', 'image_path']
-        df = pd.DataFrame(ordered_results, columns=columns)
-        
-        # 检查DataFrame是否为空
-        if df.empty:
-            print("警告：DataFrame为空，无数据写入Excel")
-        
-        # 写入Excel文件
+        # 生成Excel文件
         df.to_excel(excel_path, index=False)
         
-        print(f"Excel文件已写入: {excel_path}")
-        
-        # 验证文件是否存在
-        if os.path.exists(excel_path):
-            file_size = os.path.getsize(excel_path)
-            print(f"Excel文件创建成功，大小: {file_size} 字节")
-            # 确保文件权限正确
-            try:
-                os.chmod(excel_path, 0o644)  # 确保文件可读
-            except Exception as e:
-                print(f"设置文件权限时出错: {str(e)}")
-        else:
-            print(f"警告：Excel文件未能创建，路径不存在: {excel_path}")
-        
-        # 创建失败日志
-        if failed_files:
-            log_filename = f"hanzi_import_{timestamp}_failed.log"
-            log_path = os.path.join(output_dir, log_filename)
-            
-            with open(log_path, 'w', encoding='utf-8') as f:
-                f.write(f"处理失败的图片列表 ({len(failed_files)}/{total_count}):\n")
-                for file_name, error in failed_files:
-                    f.write(f"{file_name}: {error}\n")
-            
-            logger.info(f"已创建失败日志: {log_path}")
-            print(f"已创建失败日志: {log_path}")
-        
-        # 获取可访问的URL
-        # 构建一个标准化的相对于MEDIA_ROOT的路径
-        if output_dir.startswith(settings.MEDIA_ROOT):
-            # 使用os.path.relpath获取相对路径
-            relative_path = os.path.relpath(excel_path, settings.MEDIA_ROOT)
-            # 确保URL中全部使用正斜杠
-            excel_url = f"/media/{relative_path.replace(os.sep, '/')}"
-        else:
-            # 直接使用文件名作为相对URL
-            excel_url = f"/media/import_results/{excel_filename}"
-            
+        # 获取相对URL路径
+        excel_url = f"/media/import_results/{excel_file_name}"
         logger.info(f"生成的Excel URL: {excel_url}")
         logger.info(f"实际Excel路径: {excel_path}")
         
+        # 将失败的文件记录到日志文件
+        if failed_files:
+            with open(log_path, 'a', encoding='utf-8') as log_file:
+                for failed_file, reason in failed_files:
+                    log_file.write(f"文件: {failed_file}\n")
+                    log_file.write(f"失败原因: {reason}\n")
+                    log_file.write("-" * 40 + "\n")
+            logger.warning(f"已创建失败日志: {log_path}")
+        
+        # 更新完成状态
         update_status(100, "导入完成！")
         
-        # 返回包含更多信息的结果
-        result = {
+        return {
+            'success': True,
+            'message': '导入处理完成',
             'excel_url': excel_url,
-            'excel_path': excel_path,
             'total_count': total_count,
             'success_count': success_count,
             'failed_count': failed_count,
-            'timestamp': timestamp
+            'excel_path': excel_path,
+            'log_path': log_path if failed_files else None
         }
         
-        return result
     except Exception as e:
-        print(f"创建Excel文件失败: {str(e)}")
-        import traceback
-        print(traceback.format_exc())
-        raise ValueError(f"创建Excel文件失败: {str(e)}")
+        error_msg = f"生成Excel文件失败: {str(e)}"
+        logger.error(error_msg)
+        
+        # 更新错误状态
+        update_status(95, f"导入失败: {error_msg}")
+        
+        return {
+            'success': False,
+            'message': error_msg,
+            'total_count': total_count,
+            'success_count': success_count,
+            'failed_count': failed_count
+        }
