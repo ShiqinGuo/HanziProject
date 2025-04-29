@@ -262,15 +262,6 @@
     <div class="import-container">
         <h2 class="section-title">汉字数据导入工具</h2>
         
-        <!-- Celery状态提示 -->
-        <div class="alert alert-info" id="celeryStatusAlert" style="display:none;">
-            <strong><i class="fas fa-info-circle me-2"></i>提示:</strong>
-            <span id="celeryStatusMessage">正在检查系统状态...</span>
-            <a href="#" id="checkCeleryBtn" class="btn btn-sm btn-outline-info float-end">
-                检查系统状态
-            </a>
-        </div>
-        
         <!-- 导入表单卡片 -->
         <div class="card mb-4">
             <div class="card-header">
@@ -349,16 +340,6 @@
                         </div>
                         <div class="help-text">
                             上传包含汉字评论的JSON文件，例如: {"TEST-001.jpg": "评论内容", "TEST-002.jpg": "评论内容"}
-                        </div>
-                    </div>
-                    
-                    <!-- 高级选项 -->
-                    <div class="field-row">
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="test_mode" name="test_mode">
-                            <label class="form-check-label" for="test_mode">
-                                测试模式 (仅处理前5张图片)
-                            </label>
                         </div>
                     </div>
                     
@@ -455,41 +436,6 @@
     <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
     <script>
         $(document).ready(function() {
-            // 检查Celery状态
-            checkCeleryStatus();
-            
-            // 检查Celery状态的点击事件
-            $('#checkCeleryBtn').click(function(e) {
-                e.preventDefault();
-                checkCeleryStatus();
-            });
-            
-            // 检查Celery状态的函数
-            function checkCeleryStatus() {
-                $.ajax({
-                    url: '{% url "hanzi_app:check_celery_status" %}',
-                    type: 'GET',
-                    success: function(data) {
-                        console.log('Celery状态:', data);
-                        
-                        if (data.worker_status === 'active') {
-                            $('#celeryStatusAlert').removeClass('alert-warning alert-danger').addClass('alert-success').show();
-                            $('#celeryStatusMessage').html('Celery服务正常运行中');
-                            setTimeout(function() {
-                                $('#celeryStatusAlert').fadeOut();
-                            }, 5000);
-                        } else {
-                            $('#celeryStatusAlert').removeClass('alert-info alert-success').addClass('alert-warning').show();
-                            $('#celeryStatusMessage').html('Celery worker未运行! 请先运行<code>start_celery.bat</code>文件启动worker，否则导入任务将无法处理。');
-                        }
-                    },
-                    error: function() {
-                        $('#celeryStatusAlert').removeClass('alert-info alert-success').addClass('alert-danger').show();
-                        $('#celeryStatusMessage').html('无法检查Celery状态，请确保系统正常运行');
-                    }
-                });
-            }
-            
             // 初始化工具提示
             var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
             var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
@@ -589,7 +535,7 @@
                 
                 // 发送AJAX请求
                 $.ajax({
-                    url: '{% url "hanzi_app:import_data" %}',
+                    url: '{% url "hanzi_app:import_data_view" %}',
                     type: 'POST',
                     data: formData,
                     processData: false,

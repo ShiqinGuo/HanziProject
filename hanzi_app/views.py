@@ -1028,78 +1028,33 @@ def handle_import_file(file_obj, zip_file=None, is_json=True):
 # 修改导入数据视图函数
 @require_http_methods(["GET", "POST"])
 def import_data(request):
-    """处理汉字数据导入请求，支持ZIP图片和JSON数据文件"""
     if request.method == 'POST':
-        # 获取上传的文件
-        image_zip = request.FILES.get('image_zip')
-        json_level = request.FILES.get('json_level')
-        json_comment = request.FILES.get('json_comment')
-        test_mode = request.POST.get('test_mode') == 'on'
-        
-        # 基本验证
-        if not image_zip or not image_zip.name.lower().endswith('.zip'):
-            return JsonResponse({'status': 'error', 'message': '请上传有效的图片ZIP文件'})
-        if not json_level and not json_comment:
-            return JsonResponse({'status': 'error', 'message': '请至少提供一个JSON数据文件'})
-        
-        # 创建临时目录并保存文件
-        temp_dir = tempfile.mkdtemp(prefix="hanzi_import_")
         try:
-            # 保存ZIP文件
-            image_zip_path = os.path.join(temp_dir, image_zip.name)
-            with open(image_zip_path, 'wb+') as f:
-                for chunk in image_zip.chunks():
-                    f.write(chunk)
+            # 处理Excel文件导入
+            if 'excel_file' in request.FILES:
+                excel_file = request.FILES['excel_file']
+                zip_file = request.FILES.get('image_zip')
+                
+                # 使用通用处理函数
+                events_generator = handle_import_file(excel_file, zip_file, is_json=False)
+                return EventStreamResponse(events_generator())
             
-            # 保存JSON文件
-            json_level_path = save_uploaded_file(json_level, temp_dir) if json_level else None
-            json_comment_path = save_uploaded_file(json_comment, temp_dir) if json_comment else None
+            # 处理JSON文件导入
+            elif 'file' in request.FILES:
+                json_file = request.FILES['file']
+                zip_file = request.FILES.get('image_zip')
+                
+                # 使用通用处理函数
+                events_generator = handle_import_file(json_file, zip_file, is_json=True)
+                return EventStreamResponse(events_generator())
             
-            # 设置输出目录
-            output_dir = os.path.join(settings.MEDIA_ROOT, "import_results")
-            os.makedirs(output_dir, exist_ok=True)
-            
-            # 提交Celery任务
-            from .tasks import process_import_data_task
-            task = process_import_data_task.delay(
-                image_zip_path, json_level_path, json_comment_path, output_dir, test_mode
-            )
-            
-            logger.info(f"Celery任务已提交，任务ID: {task.id}")
-            
-            return JsonResponse({
-                'status': 'processing',
-                'message': '数据导入任务已提交，正在后台处理',
-                'task_id': task.id
-            })
+            else:
+                return JsonResponse({'success': False, 'message': '未选择文件'})
+                
         except Exception as e:
-            logger.error(f"提交导入任务失败: {str(e)}")
-            logger.error(traceback.format_exc())
-            shutil.rmtree(temp_dir, ignore_errors=True)
-            return JsonResponse({'status': 'error', 'message': f'提交导入任务失败: {str(e)}'})
+            return JsonResponse({'error': str(e)}, status=500)
     
-    # GET请求处理
-    completed_files = get_completed_files(os.path.join(settings.MEDIA_ROOT, "import_results"))
-    return render(request, 'hanzi_app/import_data.html', {
-        'title': '导入汉字数据',
-        'completed_files': completed_files
-    })
-
-def save_uploaded_file(file_obj, target_dir):
-    """保存上传的文件并返回路径"""
-    if not file_obj:
-        return None
-    
-    file_path = os.path.join(target_dir, file_obj.name)
-    with open(file_path, 'wb+') as f:
-        for chunk in file_obj.chunks():
-            f.write(chunk)
-    
-    # 验证文件是否正确保存
-    if not os.path.exists(file_path) or os.path.getsize(file_path) == 0:
-        raise ValueError(f"文件保存失败或为空: {file_path}")
-        
-    return file_path
+    return render(request, 'hanzi_app/import.html')
 
 def export_hanzi(request):
     """导出汉字数据"""
@@ -1930,14 +1885,11 @@ def import_data_view(request):
         # 获取输出格式
         output_format = request.POST.get('output_format', 'excel')
         
-        # 获取是否为测试模式
-        test_mode = request.POST.get('test_mode', 'false').lower() == 'true'
         
         # 打印调试信息
         print(f"收到上传请求 - ZIP: {image_zip.name if image_zip else 'None'}, " +
               f"等级JSON: {json_level.name if json_level else 'None'}, " +
               f"评论JSON: {json_comment.name if json_comment else 'None'}")
-        print(f"测试模式: {test_mode}")
         
         # 验证上传的文件
         if not image_zip:
@@ -1946,10 +1898,6 @@ def import_data_view(request):
         # 检查文件类型
         if not image_zip.name.lower().endswith('.zip'):
             return JsonResponse({'status': 'error', 'message': '图片文件必须是ZIP格式'})
-        
-        # 至少需要提供等级或评论JSON文件中的一个
-        if not json_level and not json_comment:
-            return JsonResponse({'status': 'error', 'message': '请至少提供一个JSON数据文件（等级或评论）'})
             
         # 检查JSON文件格式
         if json_level and not json_level.name.lower().endswith('.json'):
@@ -1959,7 +1907,9 @@ def import_data_view(request):
             return JsonResponse({'status': 'error', 'message': '评论JSON文件格式不正确'})
         
         # 创建临时目录
-        temp_dir = tempfile.mkdtemp(prefix="hanzi_import_")
+        relative_temp_dir = os.path.join(settings.MEDIA_ROOT, 'temp_import')
+        os.makedirs(relative_temp_dir, exist_ok=True)
+        temp_dir = tempfile.mkdtemp(dir=relative_temp_dir, prefix="hanzi_import_")
         print(f"创建临时目录: {temp_dir}")
         
         try:
@@ -2021,7 +1971,6 @@ def import_data_view(request):
                 json_level_path,
                 json_comment_path,
                 output_dir,
-                test_mode
             )
             
             print(f"Celery任务已提交，任务ID: {task.id}")
@@ -2067,23 +2016,6 @@ def check_import_task(request):
         from hanzi_project.celery import app
         import redis
         
-        # 首先检查Redis连接和Celery worker状态
-        worker_active = False
-        redis_connected = False
-        
-        try:
-            # 检查Redis连接
-            redis_client = redis.from_url(app.conf.broker_url)
-            redis_info = redis_client.info()
-            redis_connected = True
-            
-            # 检查worker状态
-            i = app.control.inspect()
-            if i.active() or i.ping():
-                worker_active = True
-        except Exception as e:
-            logger.warning(f"无法连接到Redis或Celery worker: {e}")
-        
         # 获取任务状态
         task_result = AsyncResult(task_id)
         logger.info(f"检查任务 {task_id} 状态：{task_result.state}")
@@ -2094,33 +2026,7 @@ def check_import_task(request):
             'status': 'processing',
             'message': '导入任务正在处理中',
             'progress': 20,  # 默认进度
-            'worker_active': worker_active,
-            'redis_connected': redis_connected
         }
-        
-        # 如果Celery worker未运行，提供合适的消息
-        if not worker_active:
-            result['message'] = 'Celery worker未运行，任务无法处理'
-            result['status'] = 'error'
-            result['progress'] = 0
-            return JsonResponse(result)
-        
-        # 如果Redis未连接，提供合适的消息
-        if not redis_connected:
-            result['message'] = 'Redis连接失败，无法获取任务状态'
-            result['status'] = 'error'
-            result['progress'] = 0
-            return JsonResponse(result)
-        
-        # 状态永远是PENDING的通常意味着worker没有运行
-        if task_result.state == 'PENDING' and task_result.result is None:
-            pending_count = request.session.get(f'pending_count_{task_id}', 0) + 1
-            request.session[f'pending_count_{task_id}'] = pending_count
-            
-            # 如果任务长时间处于PENDING状态，可能是工作进程未启动
-            if pending_count > 5:
-                result['message'] = '任务长时间未开始，请检查Celery worker是否运行'
-                result['hint'] = '请确保已启动Celery worker (运行start_celery.bat)'
         
         # 更新进度状态
         if task_result.state == 'PENDING':
@@ -2165,42 +2071,27 @@ def check_import_task(request):
                             else:
                                 result['file_exists'] = False
                                 logger.warning(f"无效的文件URL：{result['file_url']}")
-                    else:
-                        result['status'] = 'completed'
-                        result['message'] = '任务完成，但结果格式不符合预期'
-                        result['progress'] = 100
                 except Exception as e:
-                    logger.error(f"获取任务结果出错：{str(e)}")
-                    logger.error(traceback.format_exc())
+                    logger.error(f"获取任务结果时出错: {str(e)}")
                     result['status'] = 'error'
-                    result['message'] = f'获取任务结果失败：{str(e)}'
-                    result['progress'] = 0
+                    result['message'] = f'获取任务结果时出错: {str(e)}'
             else:
                 # 任务失败
                 result['status'] = 'failed'
-                result['progress'] = 100
+                result['message'] = '任务执行失败'
                 try:
-                    error_msg = str(task_result.result) if task_result.result else '任务执行失败'
-                    result['message'] = error_msg
-                    logger.error(f"任务失败：{error_msg}")
-                except Exception as e:
-                    result['message'] = f'任务失败（无法获取失败原因）：{str(e)}'
-        
-        # 添加调试信息
-        result['debug'] = {
-            'state': task_result.state,
-            'info': str(task_result.info) if hasattr(task_result, 'info') else None,
-            'backend': app.conf.result_backend,
-            'broker': app.conf.broker_url,
-        }
+                    if task_result.result:
+                        result['error'] = str(task_result.result)
+                except Exception:
+                    pass
         
         return JsonResponse(result)
     except Exception as e:
-        logger.error(f"检查任务状态出错：{str(e)}")
+        logger.error(f"检查任务状态时出错: {str(e)}")
         logger.error(traceback.format_exc())
         return JsonResponse({
             'status': 'error',
-            'message': f'检查任务状态失败：{str(e)}',
+            'message': f'检查任务状态时出错: {str(e)}',
             'task_id': task_id
         })
 
@@ -2261,66 +2152,3 @@ def delete_import_file(request):
     except Exception as e:
         logger.error(f"删除文件失败: {str(e)}")
         return JsonResponse({'success': False, 'error': f'删除文件失败: {str(e)}'})
-
-@require_http_methods(["GET"])
-def check_celery_status(request):
-    """检查Celery和Redis状态的视图函数"""
-    from datetime import datetime
-    import platform
-    import redis
-    from django.conf import settings
-    import celery.worker.control
-    from hanzi_project.celery import app
-    
-    result = {
-        'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-        'platform': platform.system(),
-        'celery_app': str(app),
-        'celery_config': {
-            'broker_url': app.conf.broker_url,
-            'result_backend': app.conf.result_backend,
-            'task_track_started': app.conf.task_track_started,
-            'result_expires': app.conf.result_expires,
-        },
-        'redis_status': 'unknown',
-        'worker_status': 'unknown',
-        'registered_tasks': list(app.tasks.keys()),
-    }
-    
-    # 检查Redis连接
-    try:
-        redis_client = redis.from_url(app.conf.broker_url)
-        redis_info = redis_client.info()
-        result['redis_status'] = 'connected'
-        result['redis_info'] = {
-            'version': redis_info.get('redis_version', 'unknown'),
-            'clients': redis_info.get('connected_clients', 0),
-            'memory': redis_info.get('used_memory_human', 'unknown'),
-        }
-    except Exception as e:
-        result['redis_status'] = f'error: {str(e)}'
-    
-    # 检查worker状态
-    try:
-        i = app.control.inspect()
-        active_workers = i.active()
-        if active_workers:
-            result['worker_status'] = 'active'
-            result['active_workers'] = active_workers
-        else:
-            result['worker_status'] = 'no active workers'
-        
-        # 检查队列中的任务
-        scheduled = i.scheduled()
-        if scheduled:
-            result['scheduled_tasks'] = scheduled
-        
-        # 检查活动中的任务
-        active_tasks = i.active()
-        if active_tasks:
-            result['active_tasks'] = active_tasks
-        
-    except Exception as e:
-        result['worker_status'] = f'error: {str(e)}'
-    
-    return JsonResponse(result, json_dumps_params={'indent': 2})

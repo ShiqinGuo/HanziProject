@@ -66,7 +66,7 @@ def process_import_data_task(self, image_zip_path, json_level_path=None, json_co
             
             # 检查解压后的图片文件
             image_files = [f for f in os.listdir(image_folder) 
-                         if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+                         if f.lower().endswith(('.png', '.jpg'))]
             
             if not image_files:
                 result['message'] = "解压后未找到任何图片文件"

@@ -12,8 +12,9 @@ urlpatterns = [
     path('delete/<str:hanzi_id>/', views.delete_hanzi, name='delete_hanzi'),
     path('edit/<str:hanzi_id>/', views.edit_hanzi, name='edit_hanzi'),
     path('update/<str:hanzi_id>/', views.update_hanzi, name='update_hanzi'),
-    path('import/', views.import_view, name='import'),
-    path('import-data/', views.import_data, name='import_data'),
+    path('import/', views.import_view, name='import'),#返回导入页面 
+    path('import-data/', views.import_data, name='import_data'),#提交导入任务
+    path('import-data-view/', views.import_data_view, name='import_data_view'),#返回数据处理页面
     path('export/', views.export_hanzi, name='export_hanzi'),
     path('export-page/', views.export_page, name='export_page'),
     path('download/<str:filename>/', views.download_file, name='download_file'),
@@ -28,5 +29,4 @@ urlpatterns = [
     path('check-import-status/', views.check_import_status, name='check_import_status'),
     path('delete-import-file/', views.delete_import_file, name='delete_import_file'),
     path('check-import-task/', views.check_import_task, name='check_import_task'),
-    path('api/celery-status/', views.check_celery_status, name='check_celery_status'),
 ]
