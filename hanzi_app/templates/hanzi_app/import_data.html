@@ -6,8 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>汉字数据导入工具 - 汉字管理系统</title>
     <link rel="shortcut icon" type="image/x-icon" href="{% static 'images/favicon.ico' %}">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link href="{% static 'css/bootstrap.min.css' %}" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'css/all.min.css' %}">
     <style>
         :root {
             --primary-color: #3f51b5;
@@ -418,8 +418,8 @@
     </div>
 
     <!-- 脚本部分 -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+    <script src="{% static 'js/bootstrap.bundle.min.js' %}"></script>
+    <script src="{% static 'js/jquery.min.js' %}"></script>
     <script>
         $(document).ready(function() {
             // 初始化工具提示
