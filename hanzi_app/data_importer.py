@@ -230,10 +230,7 @@ def import_hanzi_data(
     
     # 处理每个图片
     for index, image_file in enumerate(image_files):
-        if test_mode and index >= 10:  # 测试模式只处理前10个
-            break
-        
-        # 更频繁地更新进度（约每5%更新一次）
+        # 更新进度（约每5%更新一次）
         current_progress = int(25 + (index / total_count) * 70)  # 进度从25%到95%
         if current_progress >= last_progress_update + 2 or index % update_interval == 0:
             update_status(current_progress, f"正在处理第 {index+1}/{total_count} 个图片 ({(index/total_count*100):.1f}%)...")

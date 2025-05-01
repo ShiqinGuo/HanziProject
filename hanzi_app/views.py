@@ -72,8 +72,7 @@ try:
     with open(stoke_file_path, 'r', encoding='utf-8') as f:
         for line in f:
             parts = line.strip().split('|')
-            if len(parts) >= 3:
-                stroke_dict[parts[1]] = parts[2]
+            stroke_dict[parts[1]] = parts[2]
 except FileNotFoundError:
     print(f"文件未找到: {stoke_file_path}")
 
@@ -97,7 +96,6 @@ def capture_frontend_logs(request):
             log_level = log_data.get('level', 'info')  # 日志级别：info, warn, error等
             log_message = log_data.get('message', '')
             page_url = log_data.get('url', '')
-            user_agent = log_data.get('userAgent', '')
             timestamp = log_data.get('timestamp', datetime.now().isoformat())
             
             # 创建对应日期的日志文件
@@ -416,7 +414,7 @@ def generate_id(request):
         # 从前端请求的JSON body中获取结构类型
         data = json.loads(request.body)
         structure = data.get('structure')
-        # 验证结构类型有效性
+        # 验证结构数据有效性
         if structure not in structure_map:
             return JsonResponse({"error": "无效结构类型"}, status=400)
         # 获取该结构类型的最新ID
@@ -426,7 +424,7 @@ def generate_id(request):
         # 核心逻辑：自增编号
         if last_entry:
             # 示例：最后ID是"10015" → 提取"0015" → 转换为15 → +1=16
-            last_num = int(last_entry.id[1:])  # id[1:]获取前缀后的部分
+            last_num = int(last_entry.id[1:]) 
             new_num = last_num + 1
         else:
             # 该结构首次使用时从1开始
@@ -442,9 +440,9 @@ def generate_id(request):
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in {'png', 'jpg', 'jpeg', 'gif'}
 
-def generate_filename(generated_id, suffix, filename):
+def generate_filename(generated_id, filename):
     ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else 'unknown'
-    return f"{generated_id}{suffix}.{ext}"
+    return f"{generated_id}.{ext}"
 
 def remove_existing_files(filepath):
     try:
@@ -479,7 +477,7 @@ def add_hanzi(request):
                 return JsonResponse({'error': '不支持的图片格式'}, status=400)
             
             # 保存用户图片
-            filename = generate_filename(generated_id, "0", image_file.name)
+            filename = generate_filename(generated_id, image_file.name)
             file_path = os.path.join(UPLOAD_FOLDER, filename)
             
             with open(file_path, 'wb+') as destination:
@@ -501,7 +499,7 @@ def add_hanzi(request):
                 stroke_count=int(request.POST.get('stroke_count', 0)),
                 structure=request.POST.get('structure', '未知结构'),
                 pinyin=request.POST.get('pinyin', ''),
-                level=request.POST.get('level', 'A'),
+                level=request.POST.get('level', 'D'),
                 variant=request.POST.get('variant', '简体'),
                 comment=request.POST.get('comment', ''),
                 image_path=f"uploads/{filename}",
@@ -639,7 +637,11 @@ class EventStreamResponse(StreamingHttpResponse):
         self['Cache-Control'] = 'no-cache'
         self['X-Accel-Buffering'] = 'no'
 
-def process_import_image(image_filename, image_dir, found_image_path=None):
+
+
+# process_import_image,get_auto_stroke_order,process_hanzi_data,handle_import_file均为导入数据视图函数import_data的准备处理函数
+
+def process_import_image(image_filename, image_dir, hanzi_id, found_image_path=None):
     """处理导入的图片文件
     
     Args:
@@ -654,7 +656,7 @@ def process_import_image(image_filename, image_dir, found_image_path=None):
         return ""
         
     # 确保文件名包含扩展名
-    if not image_filename.lower().endswith(('.jpg', '.jpeg', '.png')):
+    if not image_filename.lower().endswith(('.jpg', '.png')):
         image_filename = f"{image_filename}.jpg"
     
     # 如果已知路径，直接使用
@@ -675,10 +677,11 @@ def process_import_image(image_filename, image_dir, found_image_path=None):
                 break
     
     if found and src_path:
-        # 保存用户图片到uploads目录
-        dest_path = os.path.join(UPLOAD_FOLDER, image_filename)
+        # 保存用户图片到uploads目录,用hanzi_id作为文件名，扩展名统一为jpg
+        dest_filename = f"{hanzi_id}.jpg"
+        dest_path = os.path.join(UPLOAD_FOLDER, dest_filename)
         shutil.copy(src_path, dest_path)
-        return f"uploads/{image_filename}"
+        return f"uploads/{dest_filename}"
     
     return ""
 
@@ -716,15 +719,12 @@ def process_hanzi_data(data_item, image_dir=None, zip_file=None, is_json=True):
         if is_json:
             char = data_item.get('character')
             hanzi_id = str(data_item.get('id', '')).strip()
-        else:
-            # Excel处理：检查数据格式是否字典格式的字符串
-            # 当Excel中的数据是字典格式的情况（如{'00001': 2, '柃': '言', ...}）
+        else: # Excel处理
             id_key = None
-            char_value = None
             
             # 尝试根据列名找到ID和字符
             if 'id' in data_item:
-                # 重要：确保ID保留前导零
+                # 确保ID保留前导零
                 if isinstance(data_item['id'], (int, float)) and not pd.isna(data_item['id']):
                     # 如果是数字类型，格式化为5位数，保留前导零
                     hanzi_id = f"{int(data_item['id']):05d}"
@@ -793,28 +793,13 @@ def process_hanzi_data(data_item, image_dir=None, zip_file=None, is_json=True):
         
         if hanzi_id:
             try:
-                # 首先尝试精确匹配ID
+                # 尝试匹配ID
                 existing_hanzi = Hanzi.objects.get(id=hanzi_id)
                 is_update = True
                 logger.info(f"找到ID为 {hanzi_id} 的现有记录，将进行更新")
             except Hanzi.DoesNotExist:
-                # 如果ID没有找到，再尝试匹配数字部分（移除前导零后比较）
-                try:
-                    if hanzi_id.isdigit():
-                        # 尝试查找数值相同但格式可能不同的ID
-                        numeric_id = int(hanzi_id)
-                        potential_ids = [f"{numeric_id:d}", f"{numeric_id:05d}"]
-                        existing_hanzi = Hanzi.objects.filter(id__in=potential_ids).first()
-                        if existing_hanzi:
-                            is_update = True
-                            logger.info(f"通过数值匹配找到ID {existing_hanzi.id}，将进行更新")
-                            # 使用找到的ID格式
-                            hanzi_id = existing_hanzi.id
-                except Exception as e:
-                    logger.warning(f"尝试匹配数字ID时出错: {str(e)}")
-                    
                 if not existing_hanzi:
-                    # 如果仍然没有找到匹配的ID，则创建新记录
+                    # 如果没有找到匹配的ID，则创建新记录
                     logger.info(f"未找到ID为 {hanzi_id} 的记录，将创建新记录")
         else:
             # 没有提供ID，生成新ID
@@ -826,12 +811,12 @@ def process_hanzi_data(data_item, image_dir=None, zip_file=None, is_json=True):
         image_path = ""
         if zip_file:
             if is_json and 'image_path' in data_item and data_item['image_path']:
-                image_path = process_import_image(data_item['image_path'], image_dir)
+                image_path = process_import_image(data_item['image_path'], image_dir, hanzi_id)
             elif not is_json:
                 # 处理Excel中的image_path
                 if 'image_path' in data_item and not pd.isna(data_item['image_path']):
                     image_filename = str(data_item['image_path'])
-                    image_path = process_import_image(image_filename, image_dir)
+                    image_path = process_import_image(image_filename, image_dir, hanzi_id)
                 # 如果未找到，尝试查找格式为A开头的值作为图片路径
                 else:
                     for key, value in data_item.items():
@@ -839,65 +824,39 @@ def process_hanzi_data(data_item, image_dir=None, zip_file=None, is_json=True):
                             continue
                         str_value = str(value).strip()
                         if str_value.startswith('A') and str_value[1:].isdigit():
-                            image_path = process_import_image(str_value, image_dir)
+                            image_path = process_import_image(str_value, image_dir, hanzi_id)
                             break
         
-        # 尝试使用现有图片路径（如果是更新操作）
+        # 如果检验发现是更新汉字，尝试使用现有图片路径（is_update=True）
         if is_update and not image_path and existing_hanzi.image_path:
             image_path = existing_hanzi.image_path
             
-        # 处理笔顺
-        if is_json:
-            stroke_order = data_item.get('stroke_order', '')
-        else:
-            stroke_order = data_item.get('stroke_order', '')
-            if pd.isna(stroke_order):
-                stroke_order = ''
+        # 生成笔顺
+        stroke_order = get_auto_stroke_order(char)
             
-        if not stroke_order:
-            stroke_order = get_auto_stroke_order(char)
+        # 生成拼音
+        pinyin = get_pinyin(char)[0] if get_pinyin(char) else ''
             
-        # 获取拼音（如果未提供）
-        if is_json:
-            pinyin = data_item.get('pinyin', '')
-        else:
-            pinyin = data_item.get('pinyin', '')
-            if pd.isna(pinyin):
-                pinyin = ''
-            
-        if not pinyin:
-            pinyin = get_pinyin(char)[0] if get_pinyin(char) else ''
-            
-        # 获取笔画数（如果未提供）
-        try:
-            if is_json:
-                stroke_count = int(data_item.get('stroke_count', 0))
-            else:
-                stroke_count_value = data_item.get('stroke_count')
-                if pd.isna(stroke_count_value):
-                    stroke_count = stroke_dict.get(char, 0)
-                else:
-                    stroke_count = int(stroke_count_value)
-        except (ValueError, TypeError):
-            stroke_count = stroke_dict.get(char, 0)
+        # 生成笔画数
+        stroke_count = stroke_dict.get(char, 0)
         
         # 获取其他字段
         if is_json:
-            level = data_item.get('level', 'A')
+            level = data_item.get('level', 'D')
             variant = data_item.get('variant', '简体')
-            comment = data_item.get('comment', '')
+            comment = data_item.get('comment', '无')
         else:
-            level = data_item.get('level', 'A')
+            level = data_item.get('level', 'D')
             if pd.isna(level):
-                level = 'A'
+                level = 'D'
                 
             variant = data_item.get('variant', '简体')
             if pd.isna(variant):
                 variant = '简体'
                 
-            comment = data_item.get('comment', '')
+            comment = data_item.get('comment', '无')
             if pd.isna(comment):
-                comment = ''
+                comment = '无'
                 
         # 准备汉字数据
         hanzi_data = {
@@ -915,20 +874,20 @@ def process_hanzi_data(data_item, image_dir=None, zip_file=None, is_json=True):
         
         # 创建或更新汉字对象
         if is_update:
-            # 更新现有记录
+            # 更新记录
             for key, value in hanzi_data.items():
                 setattr(existing_hanzi, key, value)
             hanzi_obj = existing_hanzi
             logger.info(f"更新汉字记录: ID={hanzi_id}, 字符={char}")
         else:
-            # 创建新记录
+            # 创建记录
             hanzi_obj = Hanzi(**hanzi_data)
             logger.info(f"创建新汉字记录: ID={hanzi_id}, 字符={char}")
             
         # 保存到数据库
         hanzi_obj.save()
         
-        # 自动生成标准图片并更新数据库
+        # 自动生成标准图片并
         standard_path = generate_hanzi_image(char)
         if standard_path:
             # 提取相对路径并更新数据库
@@ -1025,7 +984,7 @@ def handle_import_file(file_obj, zip_file=None, is_json=True):
             
     return generate_events
 
-# 修改导入数据视图函数
+# 导入数据视图函数
 @require_http_methods(["GET", "POST"])
 def import_data(request):
     if request.method == 'POST':
@@ -1195,6 +1154,7 @@ def export_hanzi(request):
         
         return render(request, 'hanzi_app/export_options.html', context)
 
+# 导出数据视图函数
 def export_page(request):
     """导出页面"""
     # 获取会话中的导出文件信息

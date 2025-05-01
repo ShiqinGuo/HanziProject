@@ -100,7 +100,7 @@ def generate_all_standard_images():
             # 仅当图片不存在时才生成
             if not os.path.exists(char_path):
                 # 修改生成函数调用路径
-                generate_hanzi_image(char)  # 传入输出目录参数
+                generate_hanzi_image(char)  
                 
             # 更新所有匹配字符的记录
             Hanzi.objects.filter(character=char).update(standard_image=save_path)
