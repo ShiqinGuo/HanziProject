@@ -2,369 +2,382 @@
 
 {% block title %}编辑汉字{% endblock %}
 
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    {% load static %}
-    {% load hanzi_filters %}
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>编辑汉字 - 汉字管理系统</title>
-    <link rel="shortcut icon" type="image/x-icon" href="{% static 'images/favicon.ico' %}">
-    <link href="{% static 'css/bootstrap.min.css' %}" rel="stylesheet">
-    <link rel="stylesheet" href="{% static 'css/all.min.css' %}">
-    <style>
-        :root {
-            --primary-color: #3f51b5;
-            --secondary-color: #ff4081;
-            --light-bg: #f5f7fa;
-            --dark-text: #333;
-            --card-shadow: 0 8px 16px rgba(0,0,0,0.1);
-        }
-        
-        body { 
-            background-color: var(--light-bg);
-            font-family: 'Noto Sans SC', sans-serif;
-        }
-        
-        .navbar {
-            background-color: var(--primary-color);
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        
-        .navbar-brand {
-            font-weight: 700;
-            color: white !important;
-        }
-        
-        .card {
-            border: none;
-            border-radius: 12px;
-            box-shadow: var(--card-shadow);
-            transition: transform 0.3s ease;
-        }
-        
-        .card-header {
-            background-color: white;
-            border-bottom: 1px solid rgba(0,0,0,0.05);
-            padding: 1.5rem;
-            border-radius: 12px 12px 0 0 !important;
-        }
-        
-        .btn-primary {
-            background-color: var(--primary-color);
-            border-color: var(--primary-color);
-        }
-        .bg-primary {
-            --bs-bg-opacity: 1;
-            background-color: rgb(63 81 181) !important;
-        }
-        .btn-primary:hover {
-            background-color: #303f9f;
-            border-color: #303f9f;
-        }
-        
-        .form-label {
-            font-weight: 500;
-            margin-bottom: 0.5rem;
-        }
-        
-        .form-control:focus, .form-select:focus {
-            border-color: var(--primary-color);
-            box-shadow: 0 0 0 0.25rem rgba(63, 81, 181, 0.25);
-        }
-        
-        .hanzi-preview {
-            font-size: 3rem;
-            text-align: center;
-            margin: 1rem 0;
-        }
-        
-        .preview-image {
-            max-height: 100px;
-            border-radius: 8px;
-            border: 1px solid #dee2e6;
-        }
-    </style>
-</head>
-<body>
-    <!-- 导航栏 -->
-    <nav class="navbar navbar-expand-lg navbar-dark mb-4">
-        <div class="container">
-            <a class="navbar-brand" href="{% url 'hanzi_app:index' %}">
-                <i class="fas fa-book-open me-2"></i>汉字管理系统
-            </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item">
-                        <a class="nav-link active" href="{% url 'hanzi_app:index' %}?page={{ request.GET.return_page|default:'1' }}&{% if request.GET.search %}search={{ request.GET.search }}&{% endif %}{% if request.GET.stroke_count %}stroke_count={{ request.GET.stroke_count }}&{% endif %}{% if request.GET.structure %}structure={{ request.GET.structure }}&{% endif %}{% if request.GET.variant %}variant={{ request.GET.variant }}&{% endif %}{% if request.GET.level %}level={{ request.GET.level }}{% endif %}"
-                           id="navBackToListBtn">
-                            <i class="fas fa-home me-1"></i>首页
-                        </a>
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </nav>
+{% block content %}
+<div class="container mt-4">
 
-    <div class="container mt-4">
-        <div class="row mb-4">
-            <div class="col-12">
-                <div class="card border-left-primary shadow">
-                    <div class="card-header bg-primary text-white">
-                        <h5 class="m-0"><i class="fas fa-info-circle me-2"></i>编辑指南</h5>
-                    </div>
-                    <div class="card-body">
-                        <p><i class="fas fa-check-circle text-success me-2"></i>修改汉字后会自动获取笔画数</p>
-                        <p><i class="fas fa-check-circle text-success me-2"></i>只需上传用户书写的图片，标准图片会自动生成</p>
-                        <p><i class="fas fa-exclamation-circle text-warning me-2"></i>编号不可更改</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0"><i class="fas fa-edit me-2"></i>编辑汉字 - {{ hanzi.character }}</h5>
-                <a href="{{ back_url }}" class="btn btn-outline-primary">
-                    <i class="fas fa-arrow-left me-1"></i>返回
-                </a>
-            </div>
-            <div class="card-body">
-                {% if success_message %}
-                <div class="alert alert-success alert-dismissible fade show" role="alert">
-                    <i class="fas fa-check-circle me-2"></i>{{ success_message }}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                </div>
-                {% endif %}
-                
-                <form method="POST" enctype="multipart/form-data" action="{% url 'hanzi_app:update_hanzi' hanzi.id %}" id="editForm">
-                    {% csrf_token %}
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label class="form-label">汉字字符</label>
-                                <input type="text" class="form-control" name="character" id="character_input" value="{{ hanzi.character }}" >
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">结构类型</label>
-                                <select class="form-select" name="structure" id="structure" required onchange="updateHanziId()">
-                                    {% for option in structure_options %}
-                                        <option value="{{ option }}" {% if option == hanzi.structure %}selected{% endif %}>{{ option }}</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">自动生成编号</label>
-                                <input type="text" class="form-control" id="generated_id" name="generated_id" value="{{ hanzi.id }}">
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">笔画数</label>
-                                <input type="number" class="form-control" id="stroke_count" name="stroke_count" value="{{ hanzi.stroke_count }}" required>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">拼音</label>
-                                <input type="text" class="form-control" name="pinyin" value="{{ hanzi.pinyin }}" required>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label class="form-label">汉字图片</label>
-                                <input type="file" class="form-control" name="new_image_file" accept="image/*">
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">标准楷体图片</label>
-                                <input type="file" class="form-control" name="new_standard_file" accept="image/*">
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">简繁体</label>
-                                <select class="form-select" name="variant" required>
-                                    {% for option in variant_options %}
-                                        <option value="{{ option }}"
-                                                {% if option == hanzi.variant %}selected{% endif %}>
-                                            {{ option }}
-                                        </option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">等级</label>
-                                <select class="form-select" name="level" id="level">
-                                    <option value="A" {% if hanzi.level == 'A' %}selected{% endif %}>A</option>
-                                    <option value="B" {% if hanzi.level == 'B' %}selected{% endif %}>B</option>
-                                    <option value="C" {% if hanzi.level == 'C' %}selected{% endif %}>C</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">笔顺（逗号分隔）</label>
-                        <input type="text" class="form-control" name="stroke_order" value="{{ hanzi.stroke_order }}" required>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">评语</label>
-                        <textarea class="form-control" name="comment" rows="3">{{ hanzi.comment }}</textarea>
-                    </div>
-                    <div class="d-flex justify-content-between mt-3">
-                        <div>
-                            <button type="submit" class="btn btn-primary" id="saveButton">
-                                <i class="fas fa-save me-1"></i>保存修改
-                            </button>
-                        </div>
-                        <div>
-                            <a href="{% url 'hanzi_app:hanzi_detail' hanzi.id %}" class="btn btn-outline-info me-2" id="backToDetailBtn">
-                                <i class="fas fa-info-circle me-1"></i>返回详情
-                            </a>
-                        </div>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
+  <!-- 原有内容 -->
+  <!DOCTYPE html>
+  <html lang="zh-CN">
+  <head>
+      {% load static %}
+      {% load hanzi_filters %}
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>编辑汉字 - 汉字管理系统</title>
+      <link rel="shortcut icon" type="image/x-icon" href="{% static 'images/favicon.ico' %}">
+      <link href="{% static 'css/bootstrap.min.css' %}" rel="stylesheet">
+      <link rel="stylesheet" href="{% static 'css/all.min.css' %}">
+      <style>
+          :root {
+              --primary-color: #3f51b5;
+              --secondary-color: #ff4081;
+              --light-bg: #f5f7fa;
+              --dark-text: #333;
+              --card-shadow: 0 8px 16px rgba(0,0,0,0.1);
+          }
+          
+          body { 
+              background-color: var(--light-bg);
+              font-family: 'Noto Sans SC', sans-serif;
+          }
+          
+          .navbar {
+              background-color: var(--primary-color);
+              box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+          }
+          
+          .navbar-brand {
+              font-weight: 700;
+              color: white !important;
+          }
+          
+          .card {
+              border: none;
+              border-radius: 12px;
+              box-shadow: var(--card-shadow);
+              transition: transform 0.3s ease;
+          }
+          
+          .card-header {
+              background-color: white;
+              border-bottom: 1px solid rgba(0,0,0,0.05);
+              padding: 1.5rem;
+              border-radius: 12px 12px 0 0 !important;
+          }
+          
+          .btn-primary {
+              background-color: var(--primary-color);
+              border-color: var(--primary-color);
+          }
+          .bg-primary {
+              --bs-bg-opacity: 1;
+              background-color: rgb(63 81 181) !important;
+          }
+          .btn-primary:hover {
+              background-color: #303f9f;
+              border-color: #303f9f;
+          }
+          
+          .form-label {
+              font-weight: 500;
+              margin-bottom: 0.5rem;
+          }
+          
+          .form-control:focus, .form-select:focus {
+              border-color: var(--primary-color);
+              box-shadow: 0 0 0 0.25rem rgba(63, 81, 181, 0.25);
+          }
+          
+          .hanzi-preview {
+              font-size: 3rem;
+              text-align: center;
+              margin: 1rem 0;
+          }
+          
+          .preview-image {
+              max-height: 100px;
+              border-radius: 8px;
+              border: 1px solid #dee2e6;
+          }
+      </style>
+  </head>
+  <body>
 
-    <footer class="bg-dark text-white mt-5 py-4">
-        <div class="container text-center">
-            <p class="mb-0">© 汉字管理平台 | 作者:ShiqinGuo</p>
-        </div>
-    </footer>
+      <div class="row mb-4">
+          <div class="col-12">
+              <div class="card border-left-primary shadow">
+                  <div class="card-header bg-primary text-white">
+                      <h5 class="m-0"><i class="fas fa-info-circle me-2"></i>编辑指南</h5>
+                  </div>
+                  <div class="card-body">
+                      <p><i class="fas fa-check-circle text-success me-2"></i>修改汉字后会自动获取笔画数</p>
+                      <p><i class="fas fa-check-circle text-success me-2"></i>只需上传用户书写的图片，标准图片会自动生成</p>
+                      <p><i class="fas fa-exclamation-circle text-warning me-2"></i>编号不可直接修改，修改结构会自动更新编号</p>
+                  </div>
+              </div>
+          </div>
+      </div>
+      <div class="card">
+          <div class="card-header d-flex justify-content-between align-items-center">
+              <h5 class="mb-0"><i class="fas fa-edit me-2"></i>编辑汉字 - {{ hanzi.character }}</h5>
+              <a href="{{ back_url }}" class="btn btn-outline-primary">
+                  <i class="fas fa-arrow-left me-1"></i>返回
+              </a>
+          </div>
+          <div class="card-body">
+              {% if success_message %}
+              <div class="alert alert-success alert-dismissible fade show" role="alert">
+                  <i class="fas fa-check-circle me-2"></i>{{ success_message }}
+                  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+              </div>
+              {% endif %}
+              
+              <form method="POST" enctype="multipart/form-data" action="{% url 'hanzi_app:update_hanzi' hanzi.id %}" id="editForm">
+                  {% csrf_token %}
+                  <div class="row g-3">
+                      <div class="col-md-6">
+                          <div class="form-group">
+                              <label class="form-label">汉字字符</label>
+                              <input type="text" class="form-control" name="character" id="character_input" value="{{ hanzi.character }}" >
+                          </div>
+                          <div class="form-group">
+                              <label class="form-label">结构类型</label>
+                              <select class="form-select" name="structure" id="structure" required onchange="updateHanziId()">
+                                  {% for option in structure_options %}
+                                      <option value="{{ option }}" {% if option == hanzi.structure %}selected{% endif %}>{{ option }}</option>
+                                  {% endfor %}
+                              </select>
+                          </div>
+                          <div class="form-group">
+                              <label class="form-label">自动生成编号</label>
+                              <input type="text" class="form-control" id="generated_id" name="generated_id" value="{{ hanzi.id }}">
+                          </div>
+                          <div class="form-group">
+                              <label class="form-label">笔画数</label>
+                              <input type="number" class="form-control" id="stroke_count" name="stroke_count" value="{{ hanzi.stroke_count }}" required>
+                          </div>
+                          <div class="form-group">
+                              <label class="form-label">拼音</label>
+                              <input type="text" class="form-control" name="pinyin" value="{{ hanzi.pinyin }}" required>
+                          </div>
+                      </div>
+                      <div class="col-md-6">
+                          <div class="form-group">
+                              <label class="form-label">汉字图片</label>
+                              <input type="file" class="form-control" name="new_image_file" accept="image/*">
+                          </div>
+                          <div class="form-group">
+                              <label class="form-label">标准楷体图片</label>
+                              <input type="file" class="form-control" name="new_standard_file" accept="image/*">
+                          </div>
+                          <div class="form-group">
+                              <label class="form-label">简繁体</label>
+                              <select class="form-select" name="variant" required>
+                                  {% for option in variant_options %}
+                                      <option value="{{ option }}"
+                                              {% if option == hanzi.variant %}selected{% endif %}>
+                                          {{ option }}
+                                      </option>
+                                  {% endfor %}
+                              </select>
+                          </div>
+                          <div class="form-group">
+                              <label class="form-label">等级</label>
+                              <select class="form-select" name="level" id="level">
+                                  <option value="A" {% if hanzi.level == 'A' %}selected{% endif %}>A</option>
+                                  <option value="B" {% if hanzi.level == 'B' %}selected{% endif %}>B</option>
+                                  <option value="C" {% if hanzi.level == 'C' %}selected{% endif %}>C</option>
+                              </select>
+                          </div>
+                      </div>
+                  </div>
+                  <div class="form-group">
+                      <label class="form-label">笔顺（逗号分隔）</label>
+                      <input type="text" class="form-control" name="stroke_order" value="{{ hanzi.stroke_order }}" required>
+                  </div>
+                  <div class="form-group">
+                      <label class="form-label">评语</label>
+                      <textarea class="form-control" name="comment" rows="3">{{ hanzi.comment }}</textarea>
+                  </div>
+                  <div class="d-flex justify-content-between mt-3">
+                      <div>
+                          <button type="submit" class="btn btn-primary" id="saveButton">
+                              <i class="fas fa-save me-1"></i>保存修改
+                          </button>
+                      </div>
+                      <div>
+                          <a href="{% url 'hanzi_app:hanzi_detail' hanzi.id %}" class="btn btn-outline-info me-2" id="backToDetailBtn">
+                              <i class="fas fa-info-circle me-1"></i>返回详情
+                          </a>
+                      </div>
+                  </div>
+              </form>
+          </div>
+      </div>
+  </div>
 
-    <script src="{% static 'js/bootstrap.bundle.min.js' %}"></script>
-    <script>
-    //更新汉字结构id
-    function updateHanziId() {
-        const structure = document.getElementById('structure').value;
-        fetch('/generate_id/', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
-            body: JSON.stringify({ structure: structure })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if(!data.error) {
-                document.getElementById('generated_id').value = data.id;
-            }
-        });
-    }
-    //添加笔画数自动获取功能
-    document.getElementById('character_input').addEventListener('input', function(e) {
-        const char = e.target.value;
-        if (char.length === 1) {
-            fetch(`/get_stroke_count/${char}/`)
-                .then(response => response.json())
-                .then(data => {
-                    document.getElementById('stroke_count').value = data.stroke_count;
-                })
-                .catch(error => console.error('获取笔画数失败:', error));
-        }
-    });
-    // 替换滚动位置记忆函数
-    document.addEventListener('DOMContentLoaded', function() {
-        // 为返回按钮添加事件监听器
-        const backToListBtn = document.getElementById('backToListBtn');
-        if (backToListBtn) {
-            // 确保返回链接包含所有原始参数
-            const params = JSON.parse(localStorage.getItem('lastIndexParams') || '{}');
-            
-            const searchParams = new URLSearchParams(params);
-            
-            const baseUrl = backToListBtn.getAttribute('href').split('?')[0];
-            const newUrl = `${baseUrl}?${searchParams.toString()}`;
-            backToListBtn.href = newUrl;
-        }
-        
-        // 为导航栏返回按钮添加相同的逻辑
-        const navBackToListBtn = document.getElementById('navBackToListBtn');
-        if (navBackToListBtn) {
-            const params = JSON.parse(localStorage.getItem('lastIndexParams') || '{}');
-            const searchParams = new URLSearchParams(params);
-            
-            const baseUrl = navBackToListBtn.getAttribute('href').split('?')[0];
-            const newUrl = `${baseUrl}?${searchParams.toString()}`;
-            navBackToListBtn.href = newUrl;
-        }
-    });
-    // 处理表单提交
-    document.addEventListener('DOMContentLoaded', function() {
-        const form = document.getElementById('editForm');
-        const saveButton = document.getElementById('saveButton');
-        const backToDetailBtn = document.getElementById('backToDetailBtn');
-        
-        if (form) {
-            form.addEventListener('submit', function(e) {
-                e.preventDefault();
-                
-                // 显示保存中状态
-                saveButton.disabled = true;
-                saveButton.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>保存中...';
-                
-                // 使用FormData提交表单
-                const formData = new FormData(form);
-                
-                fetch(form.action, {
-                    method: 'POST',
-                    body: formData,
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        // 显示成功消息
-                        const alertHtml = `
-                            <div class="alert alert-success alert-dismissible fade show" role="alert">
-                                <i class="fas fa-check-circle me-2"></i>${data.message}
-                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                            </div>
-                        `;
-                        const cardBody = document.querySelector('.card-body');
-                        cardBody.insertAdjacentHTML('afterbegin', alertHtml);
-                        
-                        // 恢复按钮状态
-                        saveButton.disabled = false;
-                        saveButton.innerHTML = '<i class="fas fa-save me-1"></i>保存修改';
-                        
-                        // 如果ID发生变化，更新详情页链接
-                        if (data.id) {
-                            const currentId = document.getElementById('generated_id').value;
-                            if (backToDetailBtn) {
-                                backToDetailBtn.href = backToDetailBtn.href.replace(/\/hanzi_detail\/\d+\//, `/hanzi_detail/${data.id}/`);
-                            }
-                        }
-                        
-                        // 5秒后自动关闭提示
-                        setTimeout(() => {
-                            const alert = document.querySelector('.alert');
-                            if (alert) {
-                                alert.classList.remove('show');
-                                setTimeout(() => alert.remove(), 150);
-                            }
-                        }, 5000);
-                    } else {
-                        // 显示错误消息
-                        alert('保存失败: ' + data.error);
-                        saveButton.disabled = false;
-                        saveButton.innerHTML = '<i class="fas fa-save me-1"></i>保存修改';
-                    }
-                })
-                .catch(error => {
-                    console.error('提交表单出错:', error);
-                    alert('保存失败，请重试');
-                    saveButton.disabled = false;
-                    saveButton.innerHTML = '<i class="fas fa-save me-1"></i>保存修改';
-                });
-            });
-        }
-        
-        // 为返回详情按钮添加事件监听器
-        if (backToDetailBtn) {
-            backToDetailBtn.addEventListener('click', function() {
-                console.log('已设置返回标志，将恢复滚动位置');
-            });
-        }
-    });
-    </script>
-</body>
-</html>
+
+  <script src="{% static 'js/bootstrap.bundle.min.js' %}"></script>
+  <script>
+  //更新汉字结构id
+  function updateHanziId() {
+      const structure = document.getElementById('structure').value;
+      fetch('/generate_id/', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+          body: JSON.stringify({ structure: structure })
+      })
+      .then(response => response.json())
+      .then(data => {
+          if(!data.error) {
+              document.getElementById('generated_id').value = data.id;
+          }
+      });
+  }
+  //添加笔画数自动获取功能
+  document.getElementById('character_input').addEventListener('input', function(e) {
+      const char = e.target.value;
+      if (char.length === 1) {
+          fetch(`/get_stroke_count/${char}/`)
+              .then(response => response.json())
+              .then(data => {
+                  document.getElementById('stroke_count').value = data.stroke_count;
+              })
+              .catch(error => console.error('获取笔画数失败:', error));
+      }
+  });
+  // 替换滚动位置记忆函数
+  document.addEventListener('DOMContentLoaded', function() {
+      // 为返回按钮添加事件监听器
+      const backToListBtn = document.getElementById('backToListBtn');
+      if (backToListBtn) {
+          // 确保返回链接包含所有原始参数
+          const params = JSON.parse(localStorage.getItem('lastIndexParams') || '{}');
+          
+          const searchParams = new URLSearchParams(params);
+          
+          const baseUrl = backToListBtn.getAttribute('href').split('?')[0];
+          const newUrl = `${baseUrl}?${searchParams.toString()}`;
+          backToListBtn.href = newUrl;
+      }
+      
+      // 为导航栏返回按钮添加相同的逻辑
+      const navBackToListBtn = document.getElementById('navBackToListBtn');
+      if (navBackToListBtn) {
+          const params = JSON.parse(localStorage.getItem('lastIndexParams') || '{}');
+          const searchParams = new URLSearchParams(params);
+          
+          const baseUrl = navBackToListBtn.getAttribute('href').split('?')[0];
+          const newUrl = `${baseUrl}?${searchParams.toString()}`;
+          navBackToListBtn.href = newUrl;
+      }
+  });
+  // 处理表单提交
+  document.addEventListener('DOMContentLoaded', function() {
+      const form = document.getElementById('editForm');
+      const saveButton = document.getElementById('saveButton');
+      const backToDetailBtn = document.getElementById('backToDetailBtn');
+      
+      if (form) {
+          form.addEventListener('submit', function(e) {
+              e.preventDefault();
+              
+              // 显示保存中状态
+              saveButton.disabled = true;
+              saveButton.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>保存中...';
+              
+              // 使用FormData提交表单
+              const formData = new FormData(form);
+              
+              fetch(form.action, {
+                  method: 'POST',
+                  body: formData,
+                  headers: {
+                      'X-Requested-With': 'XMLHttpRequest'
+                  }
+              })
+              .then(response => {
+                  // 检查响应类型
+                  const contentType = response.headers.get('content-type');
+                  if (contentType && contentType.includes('application/json')) {
+                      return response.json().then(data => ({ ok: response.ok, data }));
+                  } else {
+                      // 处理非JSON响应（如HTML）
+                      return response.text().then(text => ({ 
+                          ok: false, 
+                          data: { 
+                              error: `服务器返回了非JSON格式数据: ${text.substring(0, 100)}...`, 
+                              html: text 
+                          } 
+                      }));
+                  }
+              })
+              .then(result => {
+                  if (result.ok && result.data.success) {
+                      // 显示成功消息
+                      const alertHtml = `
+                          <div class="alert alert-success alert-dismissible fade show" role="alert">
+                              <i class="fas fa-check-circle me-2"></i>${result.data.message}
+                              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                          </div>
+                      `;
+                      const cardBody = document.querySelector('.card-body');
+                      cardBody.insertAdjacentHTML('afterbegin', alertHtml);
+                      
+                      // 恢复按钮状态
+                      saveButton.disabled = false;
+                      saveButton.innerHTML = '<i class="fas fa-save me-1"></i>保存修改';
+                      
+                      // 如果ID发生变化，更新详情页链接
+                      if (result.data.id) {
+                          const currentId = document.getElementById('generated_id').value;
+                          if (backToDetailBtn) {
+                              backToDetailBtn.href = backToDetailBtn.href.replace(/\/hanzi_detail\/\d+\//, `/hanzi_detail/${result.data.id}/`);
+                          }
+                      }
+                      
+                      // 5秒后自动关闭提示
+                      setTimeout(() => {
+                          const alert = document.querySelector('.alert');
+                          if (alert) {
+                              alert.classList.remove('show');
+                              setTimeout(() => alert.remove(), 150);
+                          }
+                      }, 5000);
+                  } else {
+                      // 显示错误消息
+                      const errorMsg = result.data.error || '未知错误';
+                      console.error('保存失败:', errorMsg);
+                      
+                      const alertHtml = `
+                          <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                              <i class="fas fa-exclamation-circle me-2"></i>保存失败: ${errorMsg}
+                              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                          </div>
+                      `;
+                      const cardBody = document.querySelector('.card-body');
+                      cardBody.insertAdjacentHTML('afterbegin', alertHtml);
+                      
+                      saveButton.disabled = false;
+                      saveButton.innerHTML = '<i class="fas fa-save me-1"></i>保存修改';
+                  }
+              })
+              .catch(error => {
+                  console.error('提交表单出错:', error);
+                  
+                  const alertHtml = `
+                      <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                          <i class="fas fa-exclamation-circle me-2"></i>保存失败，请重试: ${error.message}
+                          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                      </div>
+                  `;
+                  const cardBody = document.querySelector('.card-body');
+                  cardBody.insertAdjacentHTML('afterbegin', alertHtml);
+                  
+                  saveButton.disabled = false;
+                  saveButton.innerHTML = '<i class="fas fa-save me-1"></i>保存修改';
+              });
+          });
+      }
+      
+      // 为返回详情按钮添加事件监听器
+      if (backToDetailBtn) {
+          backToDetailBtn.addEventListener('click', function() {
+              console.log('已设置返回标志，将恢复滚动位置');
+          });
+      }
+  });
+  </script>
+  </body>
+  </html>
+{% endblock %}

@@ -570,10 +570,13 @@ def delete_hanzi(request, hanzi_id):
 def edit_hanzi(request, hanzi_id):
     hanzi = get_object_or_404(Hanzi, id=hanzi_id)
     
+    # 添加模板需要的选项
+    structure_options = [choice[0] for choice in Hanzi.STRUCTURE_CHOICES]
+    variant_options = [choice[0] for choice in Hanzi.VARIANT_CHOICES]
     # 构建返回链接，包含returning参数
     back_url = reverse('hanzi_app:index') + '?returning=1'
     
-    if request.method == 'POST':
+    if request.method == 'POST' and not request.headers.get('X-Requested-With') == 'XMLHttpRequest':
         form = HanziForm(request.POST, request.FILES, instance=hanzi)
         if form.is_valid():
             try:
@@ -581,15 +584,27 @@ def edit_hanzi(request, hanzi_id):
                 with transaction.atomic():
                     hanzi_instance = form.save(commit=False)
                     
-                    # 处理图片上传
-                    if 'image' in request.FILES:
+                    # 检查结构是否发生变化
+                    original_structure = hanzi.structure
+                    new_structure = hanzi_instance.structure
+                    if new_structure != original_structure:
+                        # 结构变化，生成新ID
+                        old_id = hanzi_instance.id
+                        new_id = generate_new_id(new_structure)
+                        logger.info(f"汉字'{hanzi_instance.character}'结构从'{original_structure}'变为'{new_structure}'，ID从'{old_id}'更新为'{new_id}'")
+                        
+                        # 更新ID
+                        hanzi_instance.id = new_id
+                    
+                    # 处理图片上传 - 用户图片
+                    if 'new_image_file' in request.FILES:
                         # 先删除旧图片
                         if hanzi.image_path:
                             old_image_path = os.path.join(UPLOAD_FOLDER, os.path.basename(hanzi.image_path))
                             if os.path.exists(old_image_path):
                                 os.remove(old_image_path)
                         
-                        image_file = request.FILES['image']
+                        image_file = request.FILES['new_image_file']
                         filename = f"{hanzi_instance.id}.{image_file.name.split('.')[-1]}"
                         file_path = os.path.join(UPLOAD_FOLDER, filename)
                         
@@ -598,10 +613,68 @@ def edit_hanzi(request, hanzi_id):
                                 destination.write(chunk)
                         
                         # 更新图片路径
-                        hanzi_instance.image_path = filename
+                        hanzi_instance.image_path = f"uploads/{filename}"
+                    elif new_structure != original_structure and hanzi.image_path:
+                        # 结构变化但没有上传新图片，需要更新现有图片文件名
+                        old_image_path = os.path.join(UPLOAD_FOLDER, os.path.basename(hanzi.image_path))
+                        if os.path.exists(old_image_path):
+                            # 获取文件扩展名
+                            filename_parts = os.path.basename(hanzi.image_path).split('.')
+                            if len(filename_parts) > 1:
+                                ext = filename_parts[-1]
+                                # 新文件名使用新ID
+                                new_filename = f"{hanzi_instance.id}.{ext}"
+                                new_image_path = os.path.join(UPLOAD_FOLDER, new_filename)
+                                # 复制文件
+                                shutil.copy2(old_image_path, new_image_path)
+                                # 删除旧文件
+                                os.remove(old_image_path)
+                                logger.info(f"已重命名图片文件: {os.path.basename(old_image_path)} -> {new_filename}")
+                                # 更新数据库中的图片路径
+                                hanzi_instance.image_path = f"uploads/{new_filename}"
                     
-                    # 保存汉字实例
-                    hanzi_instance.save()
+                    # 处理标准图片上传
+                    if 'new_standard_file' in request.FILES:
+                        # 标准图片处理逻辑
+                        standard_file = request.FILES['new_standard_file']
+                        standard_filename = f"{hanzi_instance.id}_standard.{standard_file.name.split('.')[-1]}"
+                        standard_file_path = os.path.join(UPLOAD_FOLDER, standard_filename)
+                        
+                        with open(standard_file_path, 'wb+') as destination:
+                            for chunk in standard_file.chunks():
+                                destination.write(chunk)
+                        
+                        # 更新标准图片路径字段，如果模型中有的话
+                        if hasattr(hanzi_instance, 'standard_image_path'):
+                            hanzi_instance.standard_image_path = f"uploads/{standard_filename}"
+                    elif new_structure != original_structure and hasattr(hanzi, 'standard_image_path') and hanzi.standard_image_path:
+                        # 处理标准图片路径更新
+                        old_standard_path = os.path.join(UPLOAD_FOLDER, os.path.basename(hanzi.standard_image_path))
+                        if os.path.exists(old_standard_path):
+                            # 获取文件扩展名
+                            filename_parts = os.path.basename(hanzi.standard_image_path).split('.')
+                            if len(filename_parts) > 1:
+                                ext = filename_parts[-1]
+                                # 新文件名使用新ID
+                                new_standard_filename = f"{hanzi_instance.id}_standard.{ext}"
+                                new_standard_path = os.path.join(UPLOAD_FOLDER, new_standard_filename)
+                                # 复制文件
+                                shutil.copy2(old_standard_path, new_standard_path)
+                                # 删除旧文件
+                                os.remove(old_standard_path)
+                                logger.info(f"已重命名标准图片文件: {os.path.basename(old_standard_path)} -> {new_standard_filename}")
+                                # 更新数据库中的标准图片路径
+                                hanzi_instance.standard_image_path = f"uploads/{new_standard_filename}"
+                    
+                    # 如果结构变化导致ID变化，需要删除旧记录并创建新记录
+                    if new_structure != original_structure:
+                        # 删除旧记录
+                        Hanzi.objects.filter(id=hanzi_id).delete()
+                        # 重新创建新记录
+                        hanzi_instance.save()
+                    else:
+                        # 正常保存
+                        hanzi_instance.save()
                     
                     # 重定向到详情页，保留返回参数
                     return redirect(back_url)
@@ -614,7 +687,9 @@ def edit_hanzi(request, hanzi_id):
                     'form': form,
                     'hanzi': hanzi,
                     'error': f"保存失败: {str(e)}",
-                    'back_url': back_url
+                    'back_url': back_url,
+                    'structure_options': structure_options,
+                    'variant_options': variant_options
                 })
     else:
         form = HanziForm(instance=hanzi)
@@ -622,14 +697,151 @@ def edit_hanzi(request, hanzi_id):
     return render(request, 'hanzi_app/edit.html', {
         'form': form,
         'hanzi': hanzi,
-        'back_url': back_url
+        'back_url': back_url,
+        'structure_options': structure_options,
+        'variant_options': variant_options
     })
 
 @csrf_exempt
 def update_hanzi(request, hanzi_id):
     if request.method == 'POST':
-        return edit_hanzi(request, hanzi_id)
-    return HttpResponse("不支持的请求方法", status=405)
+        try:
+            hanzi = get_object_or_404(Hanzi, id=hanzi_id)
+            original_structure = hanzi.structure  # 保存原始结构
+            
+            form = HanziForm(request.POST, request.FILES, instance=hanzi)
+            
+            if form.is_valid():
+                try:
+                    # 开启事务处理
+                    with transaction.atomic():
+                        hanzi_instance = form.save(commit=False)
+                        
+                        # 检查结构是否发生变化
+                        new_structure = hanzi_instance.structure
+                        if new_structure != original_structure:
+                            # 结构变化，生成新ID
+                            old_id = hanzi_instance.id
+                            new_id = generate_new_id(new_structure)
+                            logger.info(f"汉字'{hanzi_instance.character}'结构从'{original_structure}'变为'{new_structure}'，ID从'{old_id}'更新为'{new_id}'")
+                            
+                            # 更新ID
+                            hanzi_instance.id = new_id
+                        
+                        # 处理图片上传 - 用户图片
+                        if 'new_image_file' in request.FILES:
+                            # 先删除旧图片
+                            if hanzi.image_path:
+                                old_image_path = os.path.join(UPLOAD_FOLDER, os.path.basename(hanzi.image_path))
+                                if os.path.exists(old_image_path):
+                                    os.remove(old_image_path)
+                            
+                            image_file = request.FILES['new_image_file']
+                            filename = f"{hanzi_instance.id}.{image_file.name.split('.')[-1]}"
+                            file_path = os.path.join(UPLOAD_FOLDER, filename)
+                            
+                            with open(file_path, 'wb+') as destination:
+                                for chunk in image_file.chunks():
+                                    destination.write(chunk)
+                            
+                            # 更新图片路径
+                            hanzi_instance.image_path = f"uploads/{filename}"
+                        elif new_structure != original_structure and hanzi.image_path:
+                            # 结构变化但没有上传新图片，需要更新现有图片文件名
+                            old_image_path = os.path.join(UPLOAD_FOLDER, os.path.basename(hanzi.image_path))
+                            if os.path.exists(old_image_path):
+                                # 获取文件扩展名
+                                filename_parts = os.path.basename(hanzi.image_path).split('.')
+                                if len(filename_parts) > 1:
+                                    ext = filename_parts[-1]
+                                    # 新文件名使用新ID
+                                    new_filename = f"{hanzi_instance.id}.{ext}"
+                                    new_image_path = os.path.join(UPLOAD_FOLDER, new_filename)
+                                    # 复制文件
+                                    shutil.copy2(old_image_path, new_image_path)
+                                    # 删除旧文件
+                                    os.remove(old_image_path)
+                                    logger.info(f"已重命名图片文件: {os.path.basename(old_image_path)} -> {new_filename}")
+                                    # 更新数据库中的图片路径
+                                    hanzi_instance.image_path = f"uploads/{new_filename}"
+                        
+                        # 处理标准图片上传
+                        if 'new_standard_file' in request.FILES:
+                            # 标准图片处理逻辑
+                            standard_file = request.FILES['new_standard_file']
+                            standard_filename = f"{hanzi_instance.id}_standard.{standard_file.name.split('.')[-1]}"
+                            standard_file_path = os.path.join(UPLOAD_FOLDER, standard_filename)
+                            
+                            with open(standard_file_path, 'wb+') as destination:
+                                for chunk in standard_file.chunks():
+                                    destination.write(chunk)
+                            
+                            # 更新标准图片路径字段，如果模型中有的话
+                            if hasattr(hanzi_instance, 'standard_image_path'):
+                                hanzi_instance.standard_image_path = f"uploads/{standard_filename}"
+                        elif new_structure != original_structure and hasattr(hanzi, 'standard_image_path') and hanzi.standard_image_path:
+                            # 处理标准图片路径更新
+                            old_standard_path = os.path.join(UPLOAD_FOLDER, os.path.basename(hanzi.standard_image_path))
+                            if os.path.exists(old_standard_path):
+                                # 获取文件扩展名
+                                filename_parts = os.path.basename(hanzi.standard_image_path).split('.')
+                                if len(filename_parts) > 1:
+                                    ext = filename_parts[-1]
+                                    # 新文件名使用新ID
+                                    new_standard_filename = f"{hanzi_instance.id}_standard.{ext}"
+                                    new_standard_path = os.path.join(UPLOAD_FOLDER, new_standard_filename)
+                                    # 复制文件
+                                    shutil.copy2(old_standard_path, new_standard_path)
+                                    # 删除旧文件
+                                    os.remove(old_standard_path)
+                                    logger.info(f"已重命名标准图片文件: {os.path.basename(old_standard_path)} -> {new_standard_filename}")
+                                    # 更新数据库中的标准图片路径
+                                    hanzi_instance.standard_image_path = f"uploads/{new_standard_filename}"
+                        
+                        # 如果结构变化导致ID变化，需要删除旧记录并创建新记录
+                        if new_structure != original_structure:
+                            # 删除旧记录
+                            Hanzi.objects.filter(id=hanzi_id).delete()
+                            # 重新创建新记录
+                            hanzi_instance.save()
+                        else:
+                            # 正常保存
+                            hanzi_instance.save()
+                        
+                        # 返回JSON响应
+                        return JsonResponse({
+                            'success': True,
+                            'message': '汉字更新成功',
+                            'id': hanzi_instance.id
+                        })
+                        
+                except Exception as e:
+                    # 记录错误
+                    logger.error(f"保存汉字时出错: {e}")
+                    logger.error(traceback.format_exc())
+                    return JsonResponse({
+                        'success': False,
+                        'error': f"保存失败: {str(e)}"
+                    }, status=500)
+            else:
+                # 表单验证失败
+                errors = dict([(k, [str(e) for e in v]) for k, v in form.errors.items()])
+                return JsonResponse({
+                    'success': False,
+                    'error': '表单验证失败',
+                    'form_errors': errors
+                }, status=400)
+                
+        except Exception as e:
+            # 处理异常
+            logger.error(f"处理汉字更新请求时出错: {e}")
+            logger.error(traceback.format_exc())
+            return JsonResponse({
+                'success': False,
+                'error': f"处理请求失败: {str(e)}"
+            }, status=500)
+    
+    return JsonResponse({'success': False, 'error': '不支持的请求方法'}, status=405)
 
 class EventStreamResponse(StreamingHttpResponse):
     def __init__(self, streaming_content=(), **kwargs):
@@ -797,6 +1009,59 @@ def process_hanzi_data(data_item, image_dir=None, zip_file=None, is_json=True):
                 existing_hanzi = Hanzi.objects.get(id=hanzi_id)
                 is_update = True
                 logger.info(f"找到ID为 {hanzi_id} 的现有记录，将进行更新")
+                
+                # 检查结构是否变化
+                if existing_hanzi.structure != structure:
+                    logger.info(f"汉字'{char}'的结构由'{existing_hanzi.structure}'变为'{structure}'，需要更新ID")
+                    # 结构变化，生成新ID
+                    old_id = hanzi_id
+                    hanzi_id = generate_new_id(structure)
+                    logger.info(f"为汉字'{char}'生成新ID: {hanzi_id}")
+                    
+                    # 如果有图片，处理图片文件
+                    if existing_hanzi.image_path:
+                        old_image_path = os.path.join(UPLOAD_FOLDER, os.path.basename(existing_hanzi.image_path))
+                        if os.path.exists(old_image_path):
+                            # 获取文件扩展名
+                            filename_parts = os.path.basename(existing_hanzi.image_path).split('.')
+                            if len(filename_parts) > 1:
+                                ext = filename_parts[-1]
+                                # 新文件名使用新ID
+                                new_filename = f"{hanzi_id}.{ext}"
+                                new_image_path = os.path.join(UPLOAD_FOLDER, new_filename)
+                                # 复制文件
+                                shutil.copy2(old_image_path, new_image_path)
+                                # 删除旧文件
+                                os.remove(old_image_path)
+                                logger.info(f"已重命名图片文件: {os.path.basename(old_image_path)} -> {new_filename}")
+                                # 更新数据库中的图片路径
+                                image_path = f"uploads/{new_filename}"
+                    
+                    # 如果有标准图片，处理标准图片文件
+                    if hasattr(existing_hanzi, 'standard_image_path') and existing_hanzi.standard_image_path:
+                        old_standard_path = os.path.join(UPLOAD_FOLDER, os.path.basename(existing_hanzi.standard_image_path))
+                        if os.path.exists(old_standard_path):
+                            # 获取文件扩展名
+                            filename_parts = os.path.basename(existing_hanzi.standard_image_path).split('.')
+                            if len(filename_parts) > 1:
+                                ext = filename_parts[-1]
+                                # 新文件名使用新ID
+                                new_standard_filename = f"{hanzi_id}_standard.{ext}"
+                                new_standard_path = os.path.join(UPLOAD_FOLDER, new_standard_filename)
+                                # 复制文件
+                                shutil.copy2(old_standard_path, new_standard_path)
+                                # 删除旧文件
+                                os.remove(old_standard_path)
+                                logger.info(f"已重命名标准图片文件: {os.path.basename(old_standard_path)} -> {new_standard_filename}")
+                    
+                    # 将更新模式设为False，因为我们将删除旧记录并创建新记录
+                    is_update = False
+                    
+                    # 删除旧记录
+                    existing_hanzi.delete()
+                    logger.info(f"已删除原ID为{old_id}的记录")
+                    existing_hanzi = None
+                
             except Hanzi.DoesNotExist:
                 if not existing_hanzi:
                     # 如果没有找到匹配的ID，则创建新记录
