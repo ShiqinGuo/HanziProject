@@ -239,7 +239,7 @@
                         </td>
                         <td>
                             <div class="btn-group">
-                                <a href="{% url 'hanzi_app:hanzi_detail' hanzi.id %}?return_url={{ request.get_full_path|urlencode }}" class="btn btn-sm btn-primary me-1">
+                                <a href="{% url 'hanzi_app:hanzi_detail' hanzi.id %}?return_url={{ request.get_full_path|urlencode }}" class="btn btn-sm btn-primary me-1 detail-link">
                                     <i class="fas fa-eye"></i> 详情
                                 </a>
                                 <a href="{% url 'hanzi_app:edit_hanzi' hanzi.id %}?return_url={{ request.get_full_path|urlencode }}" class="btn btn-sm btn-warning me-1">
@@ -539,6 +539,21 @@
         }
     }
     
+    // 保存滚动位置到localStorage
+    function saveScrollPosition() {
+        const scrollPosition = window.scrollY;
+        const currentParams = new URLSearchParams(window.location.search);
+        const scrollKey = 'index_scroll_' + currentParams.toString();
+        localStorage.setItem(scrollKey, scrollPosition);
+    }
+    
+    // 点击详情链接时保存滚动位置
+    document.querySelectorAll('.detail-link').forEach(link => {
+        link.addEventListener('click', function(e) {
+            saveScrollPosition();
+        });
+    });
+    
     // 页面加载后初始化功能
     document.addEventListener('DOMContentLoaded', function() {
         // 处理动画延迟
@@ -555,11 +570,21 @@
         // 更新已选中计数
         updateSelectedCount();
         
+        // 恢复滚动位置
+        const currentParams = new URLSearchParams(window.location.search);
+        const scrollKey = 'index_scroll_' + currentParams.toString();
+        const savedScrollPosition = localStorage.getItem(scrollKey);
+        
+        if (savedScrollPosition) {
+            window.scrollTo(0, parseInt(savedScrollPosition));
+            // 滚动恢复后清除该记录，以便下次重新访问页面时从顶部开始
+            // localStorage.removeItem(scrollKey); // 注释掉这行，以保持记录
+        }
+        
         // 保存当前的URL参数到localStorage
         // 用于改进系统行为，保证从detail返回时能保留筛选条件
         const urlParams = {};
-        const searchParams = new URLSearchParams(window.location.search);
-        for (const [key, value] of searchParams.entries()) {
+        for (const [key, value] of currentParams.entries()) {
             urlParams[key] = value;
         }
         localStorage.setItem('lastIndexParams', JSON.stringify(urlParams));

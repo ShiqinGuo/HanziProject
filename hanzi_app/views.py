@@ -356,7 +356,7 @@ def index(request):
     # 为每个汉字添加动画延迟
     for i, hanzi in enumerate(hanzi_list):
         page_i = i % 20
-        hanzi.animation_delay = page_i * 100  
+        hanzi.animation_delay = page_i * 50  
     
     # 分页处理
     paginator = Paginator(hanzi_list, 20)  # 每页显示20条
@@ -1985,7 +1985,7 @@ def stroke_search(request):
         
         # 为每个汉字添加动画延迟值
         for i, hanzi in enumerate(page_obj.object_list):
-            hanzi.animation_delay = (i + 8) * 100
+            hanzi.animation_delay = (i + 8) * 50
     else:
         page_obj = None
     
