@@ -393,8 +393,25 @@
     // 删除汉字确认
     function deleteHanzi(id) {
         if (confirm('确定要删除这个汉字吗？此操作不可恢复。')) {
-            const url = `{% url 'hanzi_app:delete_hanzi' 'hanz_id' %}`.replace('hanz_id', id);
-            window.location.href = url;
+            // 获取当前的URL参数
+            const currentParams = new URLSearchParams(window.location.search);
+            
+            // 构建删除URL，使用当前的URL参数
+            let deleteUrl = `{% url 'hanzi_app:delete_hanzi' 'hanz_id' %}`.replace('hanz_id', id);
+            
+            // 添加returning参数和其他筛选参数
+            if (currentParams.toString()) {
+                deleteUrl += '?' + currentParams.toString();
+                
+                // 确保returning参数存在
+                if (!currentParams.has('returning')) {
+                    deleteUrl += '&returning=1';
+                }
+            } else {
+                deleteUrl += '?returning=1';
+            }
+            
+            window.location.href = deleteUrl;
         }
     }
     
@@ -537,6 +554,15 @@
         
         // 更新已选中计数
         updateSelectedCount();
+        
+        // 保存当前的URL参数到localStorage
+        // 用于改进系统行为，保证从detail返回时能保留筛选条件
+        const urlParams = {};
+        const searchParams = new URLSearchParams(window.location.search);
+        for (const [key, value] of searchParams.entries()) {
+            urlParams[key] = value;
+        }
+        localStorage.setItem('lastIndexParams', JSON.stringify(urlParams));
     });
     
     // 初始化复选框状态

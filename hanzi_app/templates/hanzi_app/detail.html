@@ -288,35 +288,26 @@
         // 删除汉字确认
         function deleteHanzi(id) {
             if (confirm('确定要删除这个汉字吗？此操作不可恢复。')) {
-                const url = `{% url 'hanzi_app:delete_hanzi' 'hanz_id' %}`.replace('hanz_id', id);
-                window.location.href = url;
+                // 使用当前URL中的查询参数，确保删除后返回时保留筛选条件
+                const currentUrl = new URL(window.location.href);
+                const params = currentUrl.searchParams;
+                
+                // 构建带有查询参数的删除URL
+                let deleteUrl = `{% url 'hanzi_app:delete_hanzi' 'hanz_id' %}`.replace('hanz_id', id);
+                
+                // 添加查询参数
+                if (params.toString()) {
+                    deleteUrl += '?' + params.toString();
+                }
+                
+                window.location.href = deleteUrl;
             }
         }
 
-        // 删除滚动位置记忆函数，替换为简单的返回逻辑
+        // 使用后端提供的back_url，无需本地存储
         document.addEventListener('DOMContentLoaded', function() {
-            // 为返回列表按钮添加事件监听器
-            const backToListBtn = document.getElementById('backToListBtn');
-            if (backToListBtn) {
-                // 获取保存的URL参数
-                const params = JSON.parse(localStorage.getItem('lastIndexParams') || '{}');
-                const searchParams = new URLSearchParams(params);
-                
-                const baseUrl = backToListBtn.getAttribute('href').split('?')[0];
-                const newUrl = `${baseUrl}?${searchParams.toString()}`;
-                backToListBtn.href = newUrl;
-            }
-            
-            // 为导航栏返回按钮添加相同的逻辑
-            const navBackToListBtn = document.getElementById('navBackToListBtn');
-            if (navBackToListBtn) {
-                const params = JSON.parse(localStorage.getItem('lastIndexParams') || '{}');
-                const searchParams = new URLSearchParams(params);
-                
-                const baseUrl = navBackToListBtn.getAttribute('href').split('?')[0];
-                const newUrl = `${baseUrl}?${searchParams.toString()}`;
-                navBackToListBtn.href = newUrl;
-            }
+            // 详情页上的返回按钮和导航栏返回按钮已经设置了正确的back_url
+            // 不需要再处理backToListBtn和navBackToListBtn
             
             // 为返回笔画检索按钮添加简化逻辑
             const backToStrokeSearchBtn = document.getElementById('backToStrokeSearchBtn');

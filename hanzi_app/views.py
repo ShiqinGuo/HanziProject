@@ -524,8 +524,20 @@ def add_hanzi(request):
 def hanzi_detail(request, hanzi_id):
     hanzi = get_object_or_404(Hanzi, id=hanzi_id)
     
-    # 获取返回URL，添加返回标记
-    back_url = reverse('hanzi_app:index') + '?returning=1'
+    # 构建返回URL，添加返回标记并保留所有筛选条件
+    url_params = {
+        'returning': '1',
+    }
+    
+    # 保留所有筛选参数和分页参数
+    filter_params = ['search', 'structure', 'level', 'variant', 'stroke_count', 'page']
+    for param in filter_params:
+        value = request.GET.get(param)
+        if value:
+            url_params[param] = value
+    
+    # 构建完整的返回URL
+    back_url = reverse('hanzi_app:index') + '?' + urlencode(url_params)
     
     # 获取汉字的笔画顺序
     if hanzi.stroke_order:
@@ -560,8 +572,21 @@ def delete_hanzi(request, hanzi_id):
         # 删除数据库记录
         hanzi.delete()
         
-        # 成功后重定向，添加返回标记
-        return redirect(reverse('hanzi_app:index') + '?returning=1')
+        # 构建返回URL，添加返回标记并保留所有筛选条件
+        url_params = {
+            'returning': '1',
+        }
+        
+        # 保留所有筛选参数和分页参数
+        filter_params = ['search', 'structure', 'level', 'variant', 'stroke_count', 'page']
+        for param in filter_params:
+            value = request.GET.get(param)
+            if value:
+                url_params[param] = value
+        
+        # 构建完整的返回URL并重定向
+        redirect_url = reverse('hanzi_app:index') + '?' + urlencode(url_params)
+        return redirect(redirect_url)
     except Exception as e:
         # 记录异常
         logger.error(f"删除汉字失败: {e}")
@@ -573,8 +598,21 @@ def edit_hanzi(request, hanzi_id):
     # 添加模板需要的选项
     structure_options = [choice[0] for choice in Hanzi.STRUCTURE_CHOICES]
     variant_options = [choice[0] for choice in Hanzi.VARIANT_CHOICES]
-    # 构建返回链接，包含returning参数
-    back_url = reverse('hanzi_app:index') + '?returning=1'
+    
+    # 构建返回URL，添加返回标记并保留所有筛选条件
+    url_params = {
+        'returning': '1',
+    }
+    
+    # 保留所有筛选参数和分页参数
+    filter_params = ['search', 'structure', 'level', 'variant', 'stroke_count', 'page']
+    for param in filter_params:
+        value = request.GET.get(param)
+        if value:
+            url_params[param] = value
+    
+    # 构建完整的返回URL
+    back_url = reverse('hanzi_app:index') + '?' + urlencode(url_params)
     
     if request.method == 'POST' and not request.headers.get('X-Requested-With') == 'XMLHttpRequest':
         form = HanziForm(request.POST, request.FILES, instance=hanzi)
@@ -711,6 +749,21 @@ def update_hanzi(request, hanzi_id):
             
             form = HanziForm(request.POST, request.FILES, instance=hanzi)
             
+            # 构建返回URL，添加返回标记并保留所有筛选条件
+            url_params = {
+                'returning': '1',
+            }
+            
+            # 保留所有筛选参数和分页参数
+            filter_params = ['search', 'structure', 'level', 'variant', 'stroke_count', 'page']
+            for param in filter_params:
+                value = request.GET.get(param)
+                if value:
+                    url_params[param] = value
+            
+            # 构建完整的返回URL
+            back_url = reverse('hanzi_app:index') + '?' + urlencode(url_params)
+            
             if form.is_valid():
                 try:
                     # 开启事务处理
@@ -812,7 +865,8 @@ def update_hanzi(request, hanzi_id):
                         return JsonResponse({
                             'success': True,
                             'message': '汉字更新成功',
-                            'id': hanzi_instance.id
+                            'id': hanzi_instance.id,
+                            'back_url': back_url
                         })
                         
                 except Exception as e:
