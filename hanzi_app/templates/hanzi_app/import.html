@@ -148,7 +148,7 @@
         <div class="card mb-4">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0"><i class="fas fa-file-import me-2"></i>数据导入</h5>
-                <a href="{% url 'hanzi_app:index' %}" class="btn btn-outline-primary"><i class="fas fa-arrow-left me-1"></i>返回列表</a>
+                <a href="{% url 'hanzi_app:index' %}" class="btn btn-outline-primary"><i class="fas fa-arrow-left me-1"></i>返回</a>
             </div>
             <div class="card-body">
                 <div class="row mb-4">
@@ -159,15 +159,15 @@
                             </div>
                             <div class="card-body">
                                 <p><i class="fas fa-check-circle text-success me-2"></i>支持JSON或Excel格式的汉字数据导入</p>
-                                <p><i class="fas fa-check-circle text-success me-2"></i>系统会自动生成缺少的标准图片</p>
-                                <p><i class="fas fa-exclamation-circle text-warning me-2"></i>图片文件需打包为ZIP格式，文件名应与数据中的image_path字段对应</p>
-                                <p><i class="fas fa-exclamation-circle text-warning me-2"></i>例如：如果数据中image_path为"A001"，则ZIP中应包含"A001.jpg"</p>
-                                <p><i class="fas fa-file-alt text-info me-2"></i>Excel格式要求:</p>
+                                <p><i class="fas fa-check-circle text-success me-2"></i>系统会自动生成标准图片</p>
+                                <p><i class="fas fa-exclamation-circle text-warning me-2"></i>图片文件需打包为ZIP格式，文件名与数据中的image_path字段对应</p>
+                                <p><i class="fas fa-file-alt text-info me-2"></i> Excel格式要求:</p>
                                 <ul>
-                                    <li>第一行为字段说明行</li>
-                                    <li>第二行为字段名行</li>
-                                    <li>第三行开始为数据行</li>
+                                    <li>字段说明行（可选）</li>
+                                    <li>字段名行（必须）</li>
+                                    <li>数据行（必须）</li>
                                 </ul>
+                                <p><i class="fas fa-file-alt text-info me-2"></i>Excel格式示例:</p>
                                 <div class="table-responsive">
                                     <table class="table table-sm table-bordered">
                                         <thead class="table-light">
@@ -206,36 +206,33 @@
                 </div>
                 
                 <div class="alert alert-info">
-                    <i class="fas fa-lightbulb me-2"></i>提示：导入前请确保数据格式正确，系统将自动处理汉字的ID、笔画数和拼音信息。
+                    <i class="fas fa-lightbulb me-2"></i>提示：导入前请确保数据格式正确，系统将自动生成汉字的ID、笔画数、拼音和笔顺信息。
                 </div>
                 
                 <form id="importForm" method="POST" enctype="multipart/form-data">
                     {% csrf_token %}
                     <div class="mb-3">
-                        <label for="file" class="form-label">JSON数据文件</label>
+                        <label for="file" class="form-label">JSON数据文件(可选)</label>
                         <input type="file" class="form-control" id="file" name="file" accept=".json">
-                        <div class="form-text">选择包含汉字数据的JSON文件</div>
                     </div>
                     
                     <div class="mb-3">
-                        <label for="excel_file" class="form-label">Excel数据文件</label>
+                        <label for="excel_file" class="form-label">Excel数据文件(可选)</label>
                         <input type="file" class="form-control" id="excel_file" name="excel_file" accept=".xlsx,.xls">
-                        <div class="form-text">或选择包含汉字数据的Excel文件</div>
                     </div>
                     
                     <div class="mb-3">
-                        <label for="image_zip" class="form-label">图片ZIP压缩包</label>
+                        <label for="image_zip" class="form-label">图片ZIP压缩包(必选)</label>
                         <input type="file" class="form-control" id="image_zip" name="image_zip" accept=".zip">
-                        <div class="form-text">选择包含汉字图片的ZIP文件</div>
                     </div>
                     
                     <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-upload me-1"></i>开始导入
+                        <i class="fas fa-upload me-1"></i>导入
                     </button>
                 </form>
                 
                 <div id="progressSection" class="mt-4" style="display: none;">
-                    <h6 class="mb-2">导入进度</h6>
+                    <h6 class="mb-2">进度</h6>
                     <div class="progress">
                         <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated" 
                              role="progressbar" style="width: 0%">0%</div>
@@ -259,7 +256,7 @@
                             <i class="fas fa-file-excel fa-3x text-success"></i>
                         </div>
                         <h6 class="text-center">1. 准备Excel文件</h6>
-                        <p class="small text-center">准备包含汉字信息的Excel文件，确保包含必要字段</p>
+                        <p class="small text-center">准备包含汉字信息的Excel文件，确保包含必要字段，同时提供数据导入文件生成</p>
                     </div>
                     <div class="col-md-4 mb-3">
                         <div class="text-center mb-2">
@@ -273,7 +270,7 @@
                             <i class="fas fa-upload fa-3x text-danger"></i>
                         </div>
                         <h6 class="text-center">3. 上传并导入</h6>
-                        <p class="small text-center">上传文件并点击"开始导入"，系统将自动处理数据</p>
+                        <p class="small text-center">上传文件并点击"导入"，系统将自动处理数据</p>
                     </div>
                 </div>
                 <div class="alert alert-warning mt-3">
@@ -285,17 +282,17 @@
         <!-- 在已有的卡片下方添加自定义导入按钮 -->
         <div class="card mb-4">
             <div class="card-header bg-primary text-white">
-                <h5 class="m-0"><i class="fas fa-file-import me-2"></i>自定义数据导入</h5>
+                <h5 class="m-0"><i class="fas fa-file-import me-2"></i>数据导入文件生成</h5>
             </div>
             <div class="card-body">
-                <p><i class="fas fa-info-circle me-2"></i>使用此功能可以从ZIP图片和JSON数据文件生成自定义Excel/JSON数据。</p>
+                <p><i class="fas fa-info-circle me-2"></i>该功能实现从ZIP图片和JSON数据文件生成完整的Excel/JSON数据导入文件。</p>
                 <ul class="mb-3">
-                    <li>支持自定义JSON键映射（levels, comments等）</li>
-                    <li>支持多种输出格式（Excel或JSON）</li>
-                    <li>批量处理图片并生成标准格式数据</li>
+                    <li>提供汉字等级和评价的JSON文件（可选）</li>
+                    <li>批量识别图片并生成标准格式数据</li>
+                    <li>生成多种输出格式（Excel或JSON）</li>
                 </ul>
                 <a href="{% url 'hanzi_app:import_data_view' %}" class="btn btn-light btn-lg">
-                    <i class="fas fa-external-link-alt me-1"></i>进入自定义导入工具
+                    <i class="fas fa-external-link-alt me-1"></i>数据文件生成工具
                 </a>
             </div>
         </div>
@@ -303,7 +300,7 @@
 
     <footer class="bg-dark text-white mt-5 py-4">
         <div class="container text-center">
-            <p class="mb-0">© 汉字管理平台 | 作者:ShiqinGuo</p>
+            <p class="mb-0">© 汉字管理系统 | 作者:ShiqinGuo</p>
         </div>
     </footer>
 

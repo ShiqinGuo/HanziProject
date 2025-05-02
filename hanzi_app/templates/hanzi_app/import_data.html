@@ -245,13 +245,13 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto">
                     <li class="nav-item">
-                        <a class="nav-link" href="{% url 'hanzi_app:index' %}">
+                        <a class="nav-link active" href="{% url 'hanzi_app:index' %}">
                             <i class="fas fa-home me-1"></i>首页
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{% url 'hanzi_app:import' %}">
-                            <i class="fas fa-arrow-left me-1"></i>返回导入
+                        <a class="nav-link active" href="{% url 'hanzi_app:import' %}">
+                            <i class="fas fa-arrow-left me-1"></i>返回
                         </a>
                     </li>
                 </ul>
@@ -260,7 +260,7 @@
     </nav>
 
     <div class="import-container">
-        <h2 class="section-title">汉字数据导入工具</h2>
+        <h2 class="section-title">数据文件生成工具</h2>
         
         <!-- 清理消息容器 -->
         <div id="clean-messages"></div>
@@ -268,11 +268,13 @@
         <!-- 导入表单卡片 -->
         <div class="card mb-4">
             <div class="card-header">
-                <h5 class="mb-0"><i class="fas fa-upload me-2"></i>上传数据文件</h5>
+                <h5 class="mb-0"><i class="fas fa-upload me-2"></i>上传文件</h5>
             </div>
             <div class="card-body">
                 <form id="importForm" method="post" enctype="multipart/form-data">
                     {% csrf_token %}
+                    <p><i class="fas fa-check-circle text-success me-2"></i>采用OCR技术识别汉字手写体</p>
+                    <p><i class="fas fa-check-circle text-success me-2"></i>生成过程较慢，支持运进行</p>
                     
                     <!-- 图片ZIP文件 -->
                     <div class="field-row">
@@ -294,15 +296,15 @@
                             </button>
                         </div>
                         <div class="help-text">
-                            请上传包含所有汉字图片的ZIP压缩包，支持JPG、PNG等常见图片格式
+                            请上传包含所导入数据的汉字对应图片的ZIP压缩包，支持JPG、PNG图片格式
                         </div>
                     </div>
                     
                     <!-- 等级JSON文件 -->
                     <div class="field-row">
                         <label for="json_level" class="form-label">
-                            等级JSON文件
-                            <i class="fas fa-info-circle tooltip-icon" data-bs-toggle="tooltip" title="包含汉字等级信息的JSON文件，键为图片文件名，值为等级(A/B/C/D)"></i>
+                            Level数据（JSON）
+                            <i class="fas fa-info-circle tooltip-icon" data-bs-toggle="tooltip" title="包含汉字等级信息的JSON文件，键为图片文件名，值为等级(A/B/C)"></i>
                         </label>
                         <div class="upload-section" id="levelDropzone">
                             <i class="fas fa-file-code fa-2x mb-2"></i>
@@ -318,14 +320,14 @@
                             </button>
                         </div>
                         <div class="help-text">
-                            上传包含汉字等级(A/B/C/D)的JSON文件，例如: {"TEST-001.jpg": "A", "TEST-002.jpg": "B"}
+                            上传包含汉字等级(A/B/C)的JSON文件，例如: {"TEST-001.jpg": "A", "TEST-002.jpg": "B"}
                         </div>
                     </div>
                     
                     <!-- 评论JSON文件 -->
                     <div class="field-row">
                         <label for="json_comment" class="form-label">
-                            评论JSON文件
+                            Comment数据（JSON）
                             <i class="fas fa-info-circle tooltip-icon" data-bs-toggle="tooltip" title="包含汉字评论信息的JSON文件，键为图片文件名，值为评论文本"></i>
                         </label>
                         <div class="upload-section" id="commentDropzone">
@@ -349,7 +351,7 @@
                     <!-- 提交按钮 -->
                     <div class="d-grid gap-2">
                         <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">
-                            <i class="fas fa-cloud-upload-alt me-2"></i>开始导入
+                            <i class="fas fa-cloud-upload-alt me-2"></i>生成
                         </button>
                     </div>
                 </form>
@@ -401,7 +403,7 @@
         <!-- 添加一个可下载的导入结果文件列表区域 -->
         <div class="card mb-4" id="importFilesCard">
             <div class="card-header">
-                <h5 class="mb-0"><i class="fas fa-download me-2"></i>可下载的导入结果</h5>
+                <h5 class="mb-0"><i class="fas fa-download me-2"></i>下载数据文件</h5>
                 <button id="refreshFilesBtn" class="btn btn-outline-primary btn-sm">
                     <i class="fas fa-sync-alt me-1"></i>刷新
                 </button>

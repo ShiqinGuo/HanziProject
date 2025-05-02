@@ -113,10 +113,10 @@
                         <h5 class="m-0"><i class="fas fa-info-circle me-2"></i>添加指南</h5>
                     </div>
                     <div class="card-body">
-                        <p><i class="fas fa-check-circle text-success me-2"></i>输入汉字后会自动获取笔画数</p>
-                        <p><i class="fas fa-check-circle text-success me-2"></i>系统会根据结构自动生成ID</p>
-                        <p><i class="fas fa-check-circle text-success me-2"></i>标准图片会自动生成，无需手动上传</p>
-                        <p><i class="fas fa-exclamation-circle text-warning me-2"></i>必须上传用户书写的汉字图片</p>
+                        <p><i class="fas fa-check-circle text-success me-2"></i>输入汉字字符后自动获取笔画数</p>
+                        <p><i class="fas fa-check-circle text-success me-2"></i>选择汉字结构类型后自动生成编号</p>
+                        <p><i class="fas fa-check-circle text-success me-2"></i>标准楷体图片会自动生成</p>
+                        <p><i class="fas fa-exclamation-circle text-warning me-2"></i>必须上传手写体汉字图片</p>
                     </div>
                 </div>
             </div>
@@ -181,7 +181,7 @@
                                 </select>
                             </div>
                             <div class="mb-3">
-                                <label for="image_file" class="form-label">汉字图片</label>
+                                <label for="image_file" class="form-label">手写体图片</label>
                                 <input type="file" class="form-control" id="image_file" name="image_file" accept="image/*" required>
                             </div>
                         </div>
@@ -189,7 +189,7 @@
                     <div class="mb-3">
                         <label for="stroke_order" class="form-label">笔顺</label>
                         <input type="text" class="form-control" id="stroke_order" name="stroke_order" placeholder="例如: 横,竖,撇,捺">
-                        <div class="form-text">请用逗号分隔笔画</div>
+                        <div class="form-text">笔画间逗号分隔</div>
                     </div>
                     <div class="mb-3">
                         <label for="comment" class="form-label">评语</label>

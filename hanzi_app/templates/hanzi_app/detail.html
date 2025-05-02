@@ -228,7 +228,7 @@
                 
                 <div class="row detail-images animated" style="animation-delay: 300ms;">
                     <div class="col-md-6 mb-4 mb-md-0">
-                        <p class="detail-label">用户上传图片</p>
+                        <p class="detail-label">手写体</p>
                         <img src="{{ MEDIA_URL }}{{ hanzi.image_path }}" class="img-fluid" alt="用户上传图片">
                     </div>
                     <div class="col-md-6">
@@ -261,12 +261,6 @@
             </div>
             <div class="card-footer d-flex justify-content-between">
                 <div>
-                    <a href="{% url 'hanzi_app:edit_hanzi' hanzi.id %}" class="btn btn-primary">
-                        <i class="fas fa-edit me-1"></i>编辑
-                    </a>
-                    <button onclick="deleteHanzi('{{ hanzi.id }}')" class="btn btn-danger">
-                        <i class="fas fa-trash-alt me-1"></i>删除
-                    </button>
                 </div>
                 <div>
                     <a href="{% url 'hanzi_app:stroke_search' %}" class="btn btn-outline-primary" id="backToStrokeSearchBtn">
